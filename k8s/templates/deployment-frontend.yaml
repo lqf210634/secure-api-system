@@ -1,0 +1,79 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-frontend
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.frontend.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.frontend.autoscaling.enabled }}
+  replicas: {{ .Values.frontend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "secure-api-system.frontend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.frontend.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "secure-api-system.frontend.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "secure-api-system.serviceAccountName" . }}
+      {{- include "secure-api-system.securityContext" . | nindent 6 }}
+      containers:
+        - name: frontend
+          {{- include "secure-api-system.containerSecurityContext" . | nindent 10 }}
+          image: {{ include "secure-api-system.frontend.image" . }}
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.frontend.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.frontend.livenessProbe.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ .Values.frontend.livenessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.frontend.livenessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.frontend.livenessProbe.failureThreshold | default 3 }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.frontend.readinessProbe.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.frontend.readinessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.frontend.readinessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.frontend.readinessProbe.failureThreshold | default 3 }}
+          {{- include "secure-api-system.resources" .Values.frontend | nindent 10 }}
+          env:
+            {{- range .Values.frontend.env }}
+            - name: {{ .name }}
+              {{- if .value }}
+              value: {{ .value | quote }}
+              {{- else if .valueFrom }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- end }}
+            {{- end }}
+          {{- if .Values.frontend.volumeMounts }}
+          volumeMounts:
+            {{- toYaml .Values.frontend.volumeMounts | nindent 12 }}
+          {{- end }}
+      {{- if .Values.frontend.volumes }}
+      volumes:
+        {{- toYaml .Values.frontend.volumes | nindent 8 }}
+      {{- end }}
+      {{- include "secure-api-system.nodeSelector" .Values.frontend | nindent 6 }}
+      {{- include "secure-api-system.affinity" .Values.frontend | nindent 6 }}
+      {{- include "secure-api-system.tolerations" .Values.frontend | nindent 6 }}
+{{- end }}

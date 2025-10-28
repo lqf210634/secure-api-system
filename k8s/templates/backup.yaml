@@ -1,0 +1,479 @@
+{{- if .Values.backup.enabled }}
+# Database Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-db-backup
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "{{ .Values.backup.database.schedule | default "0 2 * * *" }}"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.backup.database.successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ .Values.backup.database.failedJobsHistoryLimit | default 1 }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.database.backoffLimit | default 3 }}
+      activeDeadlineSeconds: {{ .Values.backup.database.timeout | default 3600 }}
+      template:
+        metadata:
+          labels:
+            {{- include "secure-api-system.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: db-backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "secure-api-system.fullname" . }}-backup
+          {{- with .Values.backup.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backup.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backup.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+          - name: mysql-backup
+            image: {{ .Values.backup.database.image.repository }}:{{ .Values.backup.database.image.tag | default "8.0" }}
+            imagePullPolicy: {{ .Values.backup.database.image.pullPolicy | default "IfNotPresent" }}
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              # Generate backup filename with timestamp
+              BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
+              BACKUP_FILE="backup_${BACKUP_DATE}.sql"
+              COMPRESSED_FILE="${BACKUP_FILE}.gz"
+              
+              echo "Starting database backup at $(date)"
+              
+              # Create mysqldump
+              mysqldump \
+                --host=${MYSQL_HOST} \
+                --port=${MYSQL_PORT} \
+                --user=${MYSQL_USER} \
+                --password=${MYSQL_PASSWORD} \
+                --single-transaction \
+                --routines \
+                --triggers \
+                --all-databases \
+                --add-drop-database \
+                --add-drop-table \
+                --create-options \
+                --disable-keys \
+                --extended-insert \
+                --quick \
+                --lock-tables=false \
+                > /tmp/${BACKUP_FILE}
+              
+              # Compress the backup
+              gzip /tmp/${BACKUP_FILE}
+              
+              # Upload to S3 if configured
+              {{- if .Values.backup.s3.enabled }}
+              echo "Uploading backup to S3..."
+              aws s3 cp /tmp/${COMPRESSED_FILE} s3://${S3_BUCKET}/${S3_PREFIX}/${COMPRESSED_FILE} \
+                --storage-class {{ .Values.backup.s3.storageClass | default "STANDARD_IA" }}
+              
+              # Verify upload
+              aws s3 ls s3://${S3_BUCKET}/${S3_PREFIX}/${COMPRESSED_FILE}
+              echo "Backup uploaded successfully"
+              {{- end }}
+              
+              # Clean up old backups
+              {{- if .Values.backup.retention.enabled }}
+              echo "Cleaning up old backups..."
+              RETENTION_DAYS={{ .Values.backup.retention.days | default 30 }}
+              find /backup -name "backup_*.sql.gz" -type f -mtime +${RETENTION_DAYS} -delete || true
+              
+              {{- if .Values.backup.s3.enabled }}
+              # Clean up old S3 backups
+              aws s3 ls s3://${S3_BUCKET}/${S3_PREFIX}/ --recursive | \
+                awk '$1 < "'$(date -d "${RETENTION_DAYS} days ago" +%Y-%m-%d)'" {print $4}' | \
+                xargs -I {} aws s3 rm s3://${S3_BUCKET}/{}
+              {{- end }}
+              {{- end }}
+              
+              echo "Database backup completed at $(date)"
+            env:
+            - name: MYSQL_HOST
+              value: {{ .Values.mysql.host | default (printf "%s-mysql" (include "secure-api-system.fullname" .)) }}
+            - name: MYSQL_PORT
+              value: "{{ .Values.mysql.port | default 3306 }}"
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "secure-api-system.fullname" . }}-mysql
+                  key: username
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "secure-api-system.fullname" . }}-mysql
+                  key: password
+            {{- if .Values.backup.s3.enabled }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "secure-api-system.fullname" . }}-backup-s3
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "secure-api-system.fullname" . }}-backup-s3
+                  key: secret-key
+            - name: AWS_DEFAULT_REGION
+              value: {{ .Values.backup.s3.region | default "us-east-1" }}
+            - name: S3_BUCKET
+              value: {{ .Values.backup.s3.bucket }}
+            - name: S3_PREFIX
+              value: {{ .Values.backup.s3.prefix | default "database-backups" }}
+            {{- end }}
+            resources:
+              {{- toYaml .Values.backup.database.resources | nindent 14 }}
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+            securityContext:
+              runAsUser: 999
+              runAsGroup: 999
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                - ALL
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: {{ include "secure-api-system.fullname" . }}-backup-pvc
+
+---
+# Redis Backup CronJob
+{{- if .Values.backup.redis.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-redis-backup
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "{{ .Values.backup.redis.schedule | default "0 3 * * *" }}"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "secure-api-system.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: redis-backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "secure-api-system.fullname" . }}-backup
+          containers:
+          - name: redis-backup
+            image: {{ .Values.backup.redis.image.repository }}:{{ .Values.backup.redis.image.tag | default "7-alpine" }}
+            imagePullPolicy: {{ .Values.backup.redis.image.pullPolicy | default "IfNotPresent" }}
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
+              BACKUP_FILE="redis_backup_${BACKUP_DATE}.rdb"
+              
+              echo "Starting Redis backup at $(date)"
+              
+              # Create Redis backup using BGSAVE
+              redis-cli -h ${REDIS_HOST} -p ${REDIS_PORT} -a ${REDIS_PASSWORD} BGSAVE
+              
+              # Wait for backup to complete
+              while [ $(redis-cli -h ${REDIS_HOST} -p ${REDIS_PORT} -a ${REDIS_PASSWORD} LASTSAVE) -eq $(redis-cli -h ${REDIS_HOST} -p ${REDIS_PORT} -a ${REDIS_PASSWORD} LASTSAVE) ]; do
+                sleep 1
+              done
+              
+              # Copy the RDB file
+              kubectl cp ${REDIS_HOST}:/data/dump.rdb /backup/${BACKUP_FILE}
+              
+              # Compress the backup
+              gzip /backup/${BACKUP_FILE}
+              
+              {{- if .Values.backup.s3.enabled }}
+              # Upload to S3
+              aws s3 cp /backup/${BACKUP_FILE}.gz s3://${S3_BUCKET}/${S3_PREFIX}/redis/${BACKUP_FILE}.gz
+              {{- end }}
+              
+              echo "Redis backup completed at $(date)"
+            env:
+            - name: REDIS_HOST
+              value: {{ .Values.redis.host | default (printf "%s-redis" (include "secure-api-system.fullname" .)) }}
+            - name: REDIS_PORT
+              value: "{{ .Values.redis.port | default 6379 }}"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "secure-api-system.fullname" . }}-redis
+                  key: password
+            {{- if .Values.backup.s3.enabled }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "secure-api-system.fullname" . }}-backup-s3
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "secure-api-system.fullname" . }}-backup-s3
+                  key: secret-key
+            - name: S3_BUCKET
+              value: {{ .Values.backup.s3.bucket }}
+            - name: S3_PREFIX
+              value: {{ .Values.backup.s3.prefix | default "database-backups" }}
+            {{- end }}
+            resources:
+              {{- toYaml .Values.backup.redis.resources | nindent 14 }}
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: {{ include "secure-api-system.fullname" . }}-backup-pvc
+{{- end }}
+
+---
+# Backup Restore Job Template
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-restore-scripts
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+data:
+  restore-database.sh: |
+    #!/bin/bash
+    set -e
+    
+    if [ -z "$BACKUP_FILE" ]; then
+      echo "Error: BACKUP_FILE environment variable is required"
+      exit 1
+    fi
+    
+    echo "Starting database restore from ${BACKUP_FILE} at $(date)"
+    
+    # Download from S3 if needed
+    {{- if .Values.backup.s3.enabled }}
+    if [[ $BACKUP_FILE == s3://* ]]; then
+      LOCAL_FILE="/tmp/$(basename $BACKUP_FILE)"
+      aws s3 cp $BACKUP_FILE $LOCAL_FILE
+      BACKUP_FILE=$LOCAL_FILE
+    fi
+    {{- end }}
+    
+    # Decompress if needed
+    if [[ $BACKUP_FILE == *.gz ]]; then
+      gunzip -c $BACKUP_FILE > /tmp/restore.sql
+      BACKUP_FILE=/tmp/restore.sql
+    fi
+    
+    # Restore database
+    mysql \
+      --host=${MYSQL_HOST} \
+      --port=${MYSQL_PORT} \
+      --user=${MYSQL_USER} \
+      --password=${MYSQL_PASSWORD} \
+      < $BACKUP_FILE
+    
+    echo "Database restore completed at $(date)"
+  
+  restore-redis.sh: |
+    #!/bin/bash
+    set -e
+    
+    if [ -z "$BACKUP_FILE" ]; then
+      echo "Error: BACKUP_FILE environment variable is required"
+      exit 1
+    fi
+    
+    echo "Starting Redis restore from ${BACKUP_FILE} at $(date)"
+    
+    # Download from S3 if needed
+    {{- if .Values.backup.s3.enabled }}
+    if [[ $BACKUP_FILE == s3://* ]]; then
+      LOCAL_FILE="/tmp/$(basename $BACKUP_FILE)"
+      aws s3 cp $BACKUP_FILE $LOCAL_FILE
+      BACKUP_FILE=$LOCAL_FILE
+    fi
+    {{- end }}
+    
+    # Decompress if needed
+    if [[ $BACKUP_FILE == *.gz ]]; then
+      gunzip -c $BACKUP_FILE > /tmp/dump.rdb
+      BACKUP_FILE=/tmp/dump.rdb
+    fi
+    
+    # Stop Redis, replace RDB file, and restart
+    redis-cli -h ${REDIS_HOST} -p ${REDIS_PORT} -a ${REDIS_PASSWORD} SHUTDOWN NOSAVE || true
+    kubectl cp $BACKUP_FILE ${REDIS_HOST}:/data/dump.rdb
+    # Redis will automatically restart and load the RDB file
+    
+    echo "Redis restore completed at $(date)"
+
+---
+# Backup Storage PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-backup-pvc
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.backup.storage.size | default "10Gi" }}
+  {{- if .Values.backup.storage.storageClass }}
+  storageClassName: {{ .Values.backup.storage.storageClass }}
+  {{- else if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+
+---
+{{- if .Values.backup.s3.enabled }}
+# S3 Backup Credentials Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-backup-s3
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+type: Opaque
+data:
+  access-key: {{ .Values.backup.s3.accessKey | b64enc }}
+  secret-key: {{ .Values.backup.s3.secretKey | b64enc }}
+  {{- if .Values.backup.s3.encryptionKey }}
+  encryption-key: {{ .Values.backup.s3.encryptionKey | b64enc }}
+  {{- end }}
+{{- end }}
+
+---
+# Backup Monitoring ServiceMonitor
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-backup-monitor
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: backup
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 60s
+
+---
+# Backup Metrics Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-backup-metrics
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/component: backup
+{{- end }}
+
+---
+# Backup Verification CronJob
+{{- if .Values.backup.verification.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-backup-verification
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-verification
+spec:
+  schedule: "{{ .Values.backup.verification.schedule | default "0 4 * * 0" }}"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "secure-api-system.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup-verification
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "secure-api-system.fullname" . }}-backup
+          containers:
+          - name: backup-verifier
+            image: {{ .Values.backup.verification.image.repository }}:{{ .Values.backup.verification.image.tag | default "8.0" }}
+            imagePullPolicy: {{ .Values.backup.verification.image.pullPolicy | default "IfNotPresent" }}
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              echo "Starting backup verification at $(date)"
+              
+              # Find the latest backup
+              LATEST_BACKUP=$(ls -t /backup/backup_*.sql.gz | head -1)
+              
+              if [ -z "$LATEST_BACKUP" ]; then
+                echo "No backup files found"
+                exit 1
+              fi
+              
+              echo "Verifying backup: $LATEST_BACKUP"
+              
+              # Test backup integrity
+              gunzip -t $LATEST_BACKUP
+              
+              # Test backup content (basic SQL syntax check)
+              gunzip -c $LATEST_BACKUP | head -100 | grep -q "CREATE DATABASE"
+              
+              echo "Backup verification completed successfully at $(date)"
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+              readOnly: true
+            resources:
+              {{- toYaml .Values.backup.verification.resources | nindent 14 }}
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: {{ include "secure-api-system.fullname" . }}-backup-pvc
+{{- end }}
+{{- end }}

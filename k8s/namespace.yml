@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: secure-api-system
+  labels:
+    name: secure-api-system
+    environment: production
+    app: secure-api-system

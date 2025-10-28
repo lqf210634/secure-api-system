@@ -1,0 +1,124 @@
+{{- if .Values.configMaps }}
+{{- range $name, $config := .Values.configMaps }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "secure-api-system.fullname" $ }}-{{ $name }}
+  namespace: {{ include "secure-api-system.namespace" $ }}
+  labels:
+    {{- include "secure-api-system.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+  {{- range $key, $value := $config.data }}
+  {{ $key }}: |
+{{ $value | indent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.backend.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-config
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.backend.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+  application.properties: |
+    # Application configuration
+    spring.application.name={{ .Values.app.name | default "secure-api-system" }}
+    server.port={{ .Values.backend.service.port }}
+    
+    # Database configuration
+    {{- if .Values.mysql.enabled }}
+    spring.datasource.url={{ include "secure-api-system.mysql.connectionString" . }}
+    spring.datasource.username=${SPRING_DATASOURCE_USERNAME}
+    spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}
+    {{- else }}
+    spring.datasource.url=jdbc:mysql://{{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.database }}
+    spring.datasource.username=${SPRING_DATASOURCE_USERNAME}
+    spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}
+    {{- end }}
+    spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+    spring.jpa.hibernate.ddl-auto={{ .Values.backend.database.ddlAuto | default "validate" }}
+    spring.jpa.show-sql={{ .Values.backend.database.showSql | default false }}
+    spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+    
+    # Redis configuration
+    {{- if .Values.redis.enabled }}
+    spring.redis.host={{ include "secure-api-system.redis.host" . }}
+    spring.redis.port={{ include "secure-api-system.redis.port" . }}
+    {{- else }}
+    spring.redis.host={{ .Values.externalRedis.host }}
+    spring.redis.port={{ .Values.externalRedis.port }}
+    {{- end }}
+    spring.redis.password=${SPRING_REDIS_PASSWORD}
+    spring.redis.timeout=2000ms
+    
+    # Security configuration
+    jwt.secret=${JWT_SECRET}
+    jwt.expiration={{ .Values.backend.jwt.expiration | default 86400 }}
+    encryption.key=${ENCRYPTION_KEY}
+    encryption.algorithm={{ .Values.backend.encryption.algorithm | default "AES" }}
+    
+    # Actuator configuration
+    management.endpoints.web.exposure.include={{ .Values.backend.actuator.endpoints | default "health,info,metrics,prometheus" }}
+    management.endpoint.health.show-details={{ .Values.backend.actuator.healthDetails | default "when-authorized" }}
+    management.metrics.export.prometheus.enabled={{ .Values.monitoring.prometheus.enabled | default true }}
+    management.server.port={{ .Values.backend.actuator.port | default 8081 }}
+    
+    # Logging configuration
+    logging.level.root={{ .Values.backend.logging.level | default "INFO" }}
+    logging.level.com.secureapi={{ .Values.backend.logging.appLevel | default "INFO" }}
+    logging.level.org.springframework.security={{ .Values.backend.logging.securityLevel | default "WARN" }}
+    
+    # CORS configuration
+    {{- if .Values.backend.cors }}
+    cors.allowed-origins={{ .Values.backend.cors.allowedOrigins | default "*" }}
+    cors.allowed-methods={{ .Values.backend.cors.allowedMethods | default "GET,POST,PUT,DELETE,OPTIONS" }}
+    cors.allowed-headers={{ .Values.backend.cors.allowedHeaders | default "*" }}
+    cors.allow-credentials={{ .Values.backend.cors.allowCredentials | default true }}
+    cors.max-age={{ .Values.backend.cors.maxAge | default 3600 }}
+    {{- end }}
+    
+    # Performance configuration
+    {{- if .Values.backend.performance }}
+    server.tomcat.max-threads={{ .Values.backend.performance.maxThreads | default 200 }}
+    server.tomcat.min-spare-threads={{ .Values.backend.performance.minSpareThreads | default 10 }}
+    server.tomcat.max-connections={{ .Values.backend.performance.maxConnections | default 8192 }}
+    server.tomcat.accept-count={{ .Values.backend.performance.acceptCount | default 100 }}
+    server.tomcat.connection-timeout={{ .Values.backend.performance.connectionTimeout | default 20000 }}
+    {{- end }}
+    
+    # Connection pool configuration
+    {{- if .Values.backend.connectionPool }}
+    spring.datasource.hikari.maximum-pool-size={{ .Values.backend.connectionPool.maxPoolSize | default 20 }}
+    spring.datasource.hikari.minimum-idle={{ .Values.backend.connectionPool.minIdle | default 5 }}
+    spring.datasource.hikari.idle-timeout={{ .Values.backend.connectionPool.idleTimeout | default 300000 }}
+    spring.datasource.hikari.max-lifetime={{ .Values.backend.connectionPool.maxLifetime | default 1200000 }}
+    spring.datasource.hikari.connection-timeout={{ .Values.backend.connectionPool.connectionTimeout | default 20000 }}
+    {{- end }}
+    
+    # Redis pool configuration
+    {{- if .Values.backend.redisPool }}
+    spring.redis.lettuce.pool.max-active={{ .Values.backend.redisPool.maxActive | default 20 }}
+    spring.redis.lettuce.pool.max-idle={{ .Values.backend.redisPool.maxIdle | default 10 }}
+    spring.redis.lettuce.pool.min-idle={{ .Values.backend.redisPool.minIdle | default 5 }}
+    spring.redis.lettuce.pool.max-wait={{ .Values.backend.redisPool.maxWait | default "-1ms" }}
+    {{- end }}
+    
+    # Environment specific configuration
+    spring.profiles.active={{ .Values.app.environment | default "development" }}
+    
+    {{- if .Values.configMaps.app.data }}
+    {{- range $key, $value := .Values.configMaps.app.data }}
+    {{- if eq $key "application.properties" }}
+{{ $value | indent 4 }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+{{- end }}

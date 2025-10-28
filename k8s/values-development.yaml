@@ -1,0 +1,318 @@
+# Development values for secure-api-system
+# This is a YAML-formatted file for development deployment.
+
+global:
+  environment: development
+  storageClass: "standard"
+  imageRegistry: "localhost:5000"
+
+# Application configuration
+app:
+  environment: development
+
+# Frontend configuration
+frontend:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: secure-api-system/frontend
+    tag: "latest"
+    pullPolicy: Always
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  autoscaling:
+    enabled: false
+  
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 30080
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    hosts:
+      - host: frontend.local
+        paths:
+          - path: /
+            pathType: Prefix
+
+# Backend configuration
+backend:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: secure-api-system/backend
+    tag: "latest"
+    pullPolicy: Always
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: false
+  
+  service:
+    type: NodePort
+    port: 8080
+    nodePort: 30081
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    hosts:
+      - host: api.local
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+  
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: "development"
+    - name: JAVA_OPTS
+      value: "-Xms256m -Xmx512m"
+
+# Database configuration
+mysql:
+  enabled: true
+  auth:
+    rootPassword: "dev-root-password"
+    database: "secure_api_dev"
+    username: "api_user"
+    password: "dev-password"
+  
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+      storageClass: "standard"
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+# Redis configuration
+redis:
+  enabled: true
+  auth:
+    enabled: false  # Disable auth for development
+  
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+      storageClass: "standard"
+    
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+
+# Security configuration
+security:
+  rbac:
+    enabled: true
+  networkPolicy:
+    enabled: false  # Disable for easier development
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  frontend:
+    enabled: false
+  backend:
+    enabled: false
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  scrapeInterval: 30s
+  scrapeTimeout: 10s
+  
+  alerts:
+    applicationDown:
+      duration: 2m
+    errorRate:
+      threshold: 5
+      duration: 5m
+    responseTime:
+      threshold: 2
+      duration: 5m
+
+# Logging configuration
+logging:
+  enabled: true
+  
+  elasticsearch:
+    enabled: true
+    replicas: 1
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: "standard"
+  
+  kibana:
+    enabled: true
+    
+    resources:
+      limits:
+        cpu: 250m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 256Mi
+  
+  logRotation:
+    enabled: true
+    schedule: "0 2 * * *"
+    retentionDays: 7
+    compressDays: 1
+
+# Backup configuration
+backup:
+  enabled: true
+  
+  database:
+    schedule: "0 4 * * *"
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  
+  redis:
+    enabled: true
+    schedule: "0 5 * * *"
+  
+  storage:
+    size: 10Gi
+    storageClass: "standard"
+  
+  retention:
+    enabled: true
+    days: 7
+  
+  s3:
+    enabled: false  # Disable S3 for development
+  
+  verification:
+    enabled: false  # Disable verification for development
+
+# Testing configuration
+testing:
+  performance:
+    enabled: true
+    schedule:
+      enabled: false  # Manual trigger only
+    
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  
+  security:
+    enabled: true
+    schedule:
+      enabled: false  # Manual trigger only
+
+# TLS configuration
+tls:
+  enabled: false  # Disable TLS for development
+
+# Application-specific configuration
+application:
+  profile: development
+  
+  cors:
+    allowedOrigins: 
+      - "http://localhost:3000"
+      - "http://frontend.local"
+    allowedMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowedHeaders: ["*"]
+    allowCredentials: true
+  
+  security:
+    sessionTimeout: 3600  # 1 hour for development
+    maxLoginAttempts: 10
+    lockoutDuration: 300  # 5 minutes
+  
+  performance:
+    tomcat:
+      maxThreads: 50
+      minSpareThreads: 5
+      maxConnections: 1000
+    hikari:
+      maximumPoolSize: 5
+      minimumIdle: 2
+      connectionTimeout: 20000
+      idleTimeout: 300000
+      maxLifetime: 1200000
+
+# External dependencies (disabled for development)
+externalDependencies:
+  mysql:
+    enabled: false
+  redis:
+    enabled: false
+  prometheus:
+    enabled: true
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+  grafana:
+    enabled: true
+    resources:
+      limits:
+        cpu: 250m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 256Mi
+
+# Debug configuration
+debug:
+  enabled: true
+  javaDebugPort: 5005
+  nodeDebugPort: 9229

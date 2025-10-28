@@ -1,0 +1,118 @@
+{{- if .Values.backend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-backend
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.backend.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.backend.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "secure-api-system.backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.backend.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "secure-api-system.backend.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "secure-api-system.serviceAccountName" . }}
+      {{- include "secure-api-system.securityContext" . | nindent 6 }}
+      initContainers:
+        - name: wait-for-mysql
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              until nc -z {{ include "secure-api-system.mysql.host" . }} {{ include "secure-api-system.mysql.port" . }}; do
+                echo "Waiting for MySQL..."
+                sleep 2
+              done
+              echo "MySQL is ready!"
+        - name: wait-for-redis
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              until nc -z {{ include "secure-api-system.redis.host" . }} {{ include "secure-api-system.redis.port" . }}; do
+                echo "Waiting for Redis..."
+                sleep 2
+              done
+              echo "Redis is ready!"
+      containers:
+        - name: backend
+          {{- include "secure-api-system.containerSecurityContext" . | nindent 10 }}
+          image: {{ include "secure-api-system.backend.image" . }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.port }}
+              protocol: TCP
+            - name: actuator
+              containerPort: {{ .Values.backend.actuator.port | default 8081 }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.backend.actuator.path | default "/actuator/health" }}
+              port: actuator
+            initialDelaySeconds: {{ .Values.backend.livenessProbe.initialDelaySeconds | default 60 }}
+            periodSeconds: {{ .Values.backend.livenessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.backend.livenessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.backend.livenessProbe.failureThreshold | default 3 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.backend.actuator.path | default "/actuator/health/readiness" }}
+              port: actuator
+            initialDelaySeconds: {{ .Values.backend.readinessProbe.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ .Values.backend.readinessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.backend.readinessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.backend.readinessProbe.failureThreshold | default 3 }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.backend.actuator.path | default "/actuator/health" }}
+              port: actuator
+            initialDelaySeconds: {{ .Values.backend.startupProbe.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ .Values.backend.startupProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.backend.startupProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.backend.startupProbe.failureThreshold | default 30 }}
+          {{- include "secure-api-system.resources" .Values.backend | nindent 10 }}
+          env:
+            {{- range .Values.backend.env }}
+            - name: {{ .name }}
+              {{- if .value }}
+              value: {{ .value | quote }}
+              {{- else if .valueFrom }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- end }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            {{- if .Values.backend.volumeMounts }}
+            {{- toYaml .Values.backend.volumeMounts | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "secure-api-system.fullname" . }}-config
+        {{- if .Values.backend.volumes }}
+        {{- toYaml .Values.backend.volumes | nindent 8 }}
+        {{- end }}
+      {{- include "secure-api-system.nodeSelector" .Values.backend | nindent 6 }}
+      {{- include "secure-api-system.affinity" .Values.backend | nindent 6 }}
+      {{- include "secure-api-system.tolerations" .Values.backend | nindent 6 }}
+{{- end }}

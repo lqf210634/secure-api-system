@@ -1,0 +1,219 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: secure-api-system-alerts
+  labels:
+    app: secure-api-system
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: secure-api-system.rules
+    rules:
+    # Application Health Alerts
+    - alert: ApplicationDown
+      expr: up{job=~"secure-api-.*"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        service: "{{ $labels.job }}"
+      annotations:
+        summary: "Application {{ $labels.job }} is down"
+        description: "Application {{ $labels.job }} has been down for more than 1 minute."
+        runbook_url: "https://wiki.company.com/runbooks/application-down"
+
+    - alert: HighResponseTime
+      expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=~"secure-api-.*"}[5m])) > 1
+      for: 3m
+      labels:
+        severity: warning
+        service: "{{ $labels.job }}"
+      annotations:
+        summary: "High response time for {{ $labels.job }}"
+        description: "95th percentile response time is {{ $value }}s for {{ $labels.job }}"
+        runbook_url: "https://wiki.company.com/runbooks/high-response-time"
+
+    - alert: HighErrorRate
+      expr: rate(http_requests_total{job=~"secure-api-.*",status=~"5.."}[5m]) / rate(http_requests_total{job=~"secure-api-.*"}[5m]) > 0.05
+      for: 2m
+      labels:
+        severity: critical
+        service: "{{ $labels.job }}"
+      annotations:
+        summary: "High error rate for {{ $labels.job }}"
+        description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.job }}"
+        runbook_url: "https://wiki.company.com/runbooks/high-error-rate"
+
+    # Resource Usage Alerts
+    - alert: HighCPUUsage
+      expr: rate(container_cpu_usage_seconds_total{pod=~"secure-api-.*"}[5m]) * 100 > 80
+      for: 5m
+      labels:
+        severity: warning
+        service: "{{ $labels.pod }}"
+      annotations:
+        summary: "High CPU usage for {{ $labels.pod }}"
+        description: "CPU usage is {{ $value }}% for {{ $labels.pod }}"
+        runbook_url: "https://wiki.company.com/runbooks/high-cpu-usage"
+
+    - alert: HighMemoryUsage
+      expr: container_memory_usage_bytes{pod=~"secure-api-.*"} / container_spec_memory_limit_bytes{pod=~"secure-api-.*"} * 100 > 80
+      for: 5m
+      labels:
+        severity: warning
+        service: "{{ $labels.pod }}"
+      annotations:
+        summary: "High memory usage for {{ $labels.pod }}"
+        description: "Memory usage is {{ $value }}% for {{ $labels.pod }}"
+        runbook_url: "https://wiki.company.com/runbooks/high-memory-usage"
+
+    - alert: PodCrashLooping
+      expr: rate(kube_pod_container_status_restarts_total{pod=~"secure-api-.*"}[15m]) > 0
+      for: 5m
+      labels:
+        severity: critical
+        service: "{{ $labels.pod }}"
+      annotations:
+        summary: "Pod {{ $labels.pod }} is crash looping"
+        description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last 15 minutes"
+        runbook_url: "https://wiki.company.com/runbooks/pod-crash-looping"
+
+    # Database Alerts
+    - alert: DatabaseConnectionPoolHigh
+      expr: hikaricp_connections_active{application=~"secure-api-.*"} / hikaricp_connections_max{application=~"secure-api-.*"} * 100 > 80
+      for: 3m
+      labels:
+        severity: warning
+        service: "{{ $labels.application }}"
+      annotations:
+        summary: "High database connection pool usage"
+        description: "Database connection pool usage is {{ $value }}% for {{ $labels.application }}"
+        runbook_url: "https://wiki.company.com/runbooks/high-db-connections"
+
+    - alert: DatabaseSlowQueries
+      expr: mysql_global_status_slow_queries > 10
+      for: 5m
+      labels:
+        severity: warning
+        service: "database"
+      annotations:
+        summary: "High number of slow database queries"
+        description: "Number of slow queries: {{ $value }}"
+        runbook_url: "https://wiki.company.com/runbooks/slow-queries"
+
+    # JVM Alerts
+    - alert: JVMHeapUsageHigh
+      expr: jvm_memory_used_bytes{area="heap",application=~"secure-api-.*"} / jvm_memory_max_bytes{area="heap",application=~"secure-api-.*"} * 100 > 80
+      for: 5m
+      labels:
+        severity: warning
+        service: "{{ $labels.application }}"
+      annotations:
+        summary: "High JVM heap usage"
+        description: "JVM heap usage is {{ $value }}% for {{ $labels.application }}"
+        runbook_url: "https://wiki.company.com/runbooks/high-jvm-heap"
+
+    - alert: JVMGCTimeHigh
+      expr: rate(jvm_gc_collection_seconds_sum{application=~"secure-api-.*"}[5m]) > 0.1
+      for: 3m
+      labels:
+        severity: warning
+        service: "{{ $labels.application }}"
+      annotations:
+        summary: "High JVM GC time"
+        description: "JVM GC time is {{ $value }}s per second for {{ $labels.application }}"
+        runbook_url: "https://wiki.company.com/runbooks/high-gc-time"
+
+    # Security Alerts
+    - alert: UnauthorizedAccess
+      expr: rate(http_requests_total{job=~"secure-api-.*",status="401"}[5m]) > 5
+      for: 1m
+      labels:
+        severity: warning
+        service: "{{ $labels.job }}"
+      annotations:
+        summary: "High number of unauthorized access attempts"
+        description: "{{ $value }} unauthorized access attempts per second for {{ $labels.job }}"
+        runbook_url: "https://wiki.company.com/runbooks/unauthorized-access"
+
+    - alert: SuspiciousActivity
+      expr: rate(http_requests_total{job=~"secure-api-.*",status="403"}[5m]) > 10
+      for: 1m
+      labels:
+        severity: critical
+        service: "{{ $labels.job }}"
+      annotations:
+        summary: "Suspicious activity detected"
+        description: "{{ $value }} forbidden requests per second for {{ $labels.job }}"
+        runbook_url: "https://wiki.company.com/runbooks/suspicious-activity"
+
+    # Business Logic Alerts
+    - alert: LowUserRegistrations
+      expr: rate(user_registrations_total[1h]) < 1
+      for: 30m
+      labels:
+        severity: warning
+        service: "business-metrics"
+      annotations:
+        summary: "Low user registration rate"
+        description: "User registration rate is {{ $value }} per hour"
+        runbook_url: "https://wiki.company.com/runbooks/low-registrations"
+
+    - alert: HighFailedLogins
+      expr: rate(login_attempts_total{status="failed"}[5m]) > 10
+      for: 2m
+      labels:
+        severity: warning
+        service: "authentication"
+      annotations:
+        summary: "High failed login rate"
+        description: "Failed login rate is {{ $value }} per second"
+        runbook_url: "https://wiki.company.com/runbooks/high-failed-logins"
+
+  - name: secure-api-system.infrastructure
+    rules:
+    # Infrastructure Alerts
+    - alert: NodeDiskSpaceHigh
+      expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+      for: 5m
+      labels:
+        severity: critical
+        service: "infrastructure"
+      annotations:
+        summary: "Low disk space on node {{ $labels.instance }}"
+        description: "Disk space is {{ $value }}% available on {{ $labels.instance }}"
+        runbook_url: "https://wiki.company.com/runbooks/low-disk-space"
+
+    - alert: NodeMemoryHigh
+      expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 10
+      for: 5m
+      labels:
+        severity: warning
+        service: "infrastructure"
+      annotations:
+        summary: "High memory usage on node {{ $labels.instance }}"
+        description: "Memory usage is {{ $value }}% available on {{ $labels.instance }}"
+        runbook_url: "https://wiki.company.com/runbooks/high-node-memory"
+
+    - alert: NodeCPUHigh
+      expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+      for: 5m
+      labels:
+        severity: warning
+        service: "infrastructure"
+      annotations:
+        summary: "High CPU usage on node {{ $labels.instance }}"
+        description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+        runbook_url: "https://wiki.company.com/runbooks/high-node-cpu"
+
+    # Network Alerts
+    - alert: HighNetworkTraffic
+      expr: rate(node_network_receive_bytes_total[5m]) > 100000000  # 100MB/s
+      for: 5m
+      labels:
+        severity: warning
+        service: "network"
+      annotations:
+        summary: "High network traffic on {{ $labels.instance }}"
+        description: "Network receive rate is {{ $value | humanize }}B/s on {{ $labels.instance }}"
+        runbook_url: "https://wiki.company.com/runbooks/high-network-traffic"

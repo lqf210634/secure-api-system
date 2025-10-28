@@ -1,0 +1,108 @@
+# 安全API系统 - 搜索引擎爬虫配置
+
+# 允许所有爬虫访问公开页面
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /about
+Allow: /contact
+Allow: /help
+Allow: /privacy
+Allow: /terms
+
+# 禁止访问敏感页面和目录
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /api
+Disallow: /users
+Disallow: /settings
+Disallow: /profile
+Disallow: /security
+Disallow: /monitoring
+Disallow: /logs
+Disallow: /backup
+Disallow: /config
+Disallow: /private
+Disallow: /internal
+
+# 禁止访问技术文件和目录
+Disallow: /src/
+Disallow: /node_modules/
+Disallow: /dist/
+Disallow: /build/
+Disallow: /.git/
+Disallow: /.env
+Disallow: /.env.*
+Disallow: /package.json
+Disallow: /package-lock.json
+Disallow: /yarn.lock
+Disallow: /tsconfig.json
+Disallow: /vite.config.ts
+Disallow: /.eslintrc.*
+Disallow: /.prettierrc
+Disallow: /.gitignore
+
+# 禁止访问临时文件和缓存
+Disallow: /tmp/
+Disallow: /temp/
+Disallow: /cache/
+Disallow: /*.tmp
+Disallow: /*.temp
+Disallow: /*.log
+Disallow: /*.bak
+Disallow: /*.backup
+
+# 禁止访问特定文件类型
+Disallow: /*.sql
+Disallow: /*.db
+Disallow: /*.sqlite
+Disallow: /*.key
+Disallow: /*.pem
+Disallow: /*.p12
+Disallow: /*.pfx
+
+# 特定搜索引擎配置
+User-agent: Googlebot
+Allow: /
+Disallow: /dashboard
+Disallow: /admin
+Crawl-delay: 1
+
+User-agent: Bingbot
+Allow: /
+Disallow: /dashboard
+Disallow: /admin
+Crawl-delay: 2
+
+User-agent: Baiduspider
+Allow: /
+Disallow: /dashboard
+Disallow: /admin
+Crawl-delay: 3
+
+# 禁止恶意爬虫
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+# 网站地图位置
+Sitemap: https://secure-api-system.example.com/sitemap.xml
+Sitemap: https://secure-api-system.example.com/sitemap-index.xml
+
+# 爬取延迟设置（秒）
+Crawl-delay: 1
+
+# 访问时间限制（仅在特定时间允许爬取）
+# Visit-time: 0100-0600
+
+# 请求频率限制
+# Request-rate: 1/10s

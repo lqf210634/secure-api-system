@@ -1,0 +1,59 @@
+/// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_API_BASE_URL: string
+  readonly VITE_APP_VERSION: string
+  readonly VITE_APP_BUILD_TIME: string
+  readonly VITE_JWT_SECRET: string
+  readonly VITE_AES_SECRET_KEY: string
+  readonly VITE_RSA_PUBLIC_KEY: string
+  readonly VITE_RSA_PRIVATE_KEY: string
+  readonly VITE_UPLOAD_MAX_SIZE: string
+  readonly VITE_PAGINATION_PAGE_SIZE: string
+  readonly VITE_CACHE_EXPIRE_TIME: string
+  readonly VITE_LOG_LEVEL: string
+  readonly VITE_CAPTCHA_SITE_KEY: string
+  readonly VITE_MAX_LOGIN_ATTEMPTS: string
+  readonly VITE_ENABLE_REGISTRATION: string
+  readonly VITE_ENABLE_EMAIL_VERIFICATION: string
+  readonly VITE_ENABLE_SMS_VERIFICATION: string
+  readonly VITE_ENABLE_TWO_FACTOR: string
+  readonly VITE_ENABLE_SOCIAL_LOGIN: string
+  readonly VITE_ENABLE_AUDIT_LOG: string
+  readonly VITE_ENABLE_RATE_LIMITING: string
+  readonly VITE_ENABLE_IP_WHITELIST: string
+  readonly VITE_ENABLE_DEVICE_TRACKING: string
+  readonly VITE_ENABLE_SESSION_MANAGEMENT: string
+  readonly VITE_ENABLE_PASSWORD_POLICY: string
+  readonly VITE_ENABLE_ACCOUNT_LOCKOUT: string
+  readonly VITE_ENABLE_SECURITY_HEADERS: string
+  readonly VITE_ENABLE_CSRF_PROTECTION: string
+  readonly VITE_ENABLE_XSS_PROTECTION: string
+  readonly VITE_ENABLE_CONTENT_SECURITY_POLICY: string
+  readonly VITE_ENABLE_HTTPS_ONLY: string
+  readonly VITE_ENABLE_SECURE_COOKIES: string
+  readonly VITE_ENABLE_SAME_SITE_COOKIES: string
+  readonly VITE_ENABLE_HTTP_STRICT_TRANSPORT_SECURITY: string
+  readonly VITE_ENABLE_X_FRAME_OPTIONS: string
+  readonly VITE_ENABLE_X_CONTENT_TYPE_OPTIONS: string
+  readonly VITE_ENABLE_REFERRER_POLICY: string
+  readonly VITE_ENABLE_PERMISSIONS_POLICY: string
+  readonly VITE_ENABLE_EXPECT_CT: string
+  readonly VITE_ENABLE_FEATURE_POLICY: string
+  readonly VITE_ENABLE_CLEAR_SITE_DATA: string
+  readonly VITE_ENABLE_CROSS_ORIGIN_EMBEDDER_POLICY: string
+  readonly VITE_ENABLE_CROSS_ORIGIN_OPENER_POLICY: string
+  readonly VITE_ENABLE_CROSS_ORIGIN_RESOURCE_POLICY: string
+  readonly VITE_ENABLE_DOCUMENT_POLICY: string
+  readonly VITE_ENABLE_ORIGIN_AGENT_CLUSTER: string
+  readonly VITE_ENABLE_TIMING_ALLOW_ORIGIN: string
+  readonly VITE_ENABLE_X_DNS_PREFETCH_CONTROL: string
+  readonly VITE_ENABLE_X_DOWNLOAD_OPTIONS: string
+  readonly VITE_ENABLE_X_PERMITTED_CROSS_DOMAIN_POLICIES: string
+  readonly VITE_ENABLE_X_POWERED_BY: string
+  readonly VITE_ENABLE_X_XSS_PROTECTION: string
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}

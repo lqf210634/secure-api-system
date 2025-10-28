@@ -1,0 +1,804 @@
+# Default values for secure-api-system
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+global:
+  # Global configuration
+  environment: production
+  storageClass: ""
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# Application metadata
+nameOverride: ""
+fullnameOverride: ""
+
+# Namespace configuration
+namespace:
+  create: true
+  name: ""
+  labels: {}
+  annotations: {}
+
+# Service Account configuration
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  automountServiceAccountToken: false
+
+# Security configuration
+security:
+  rbac:
+    enabled: true
+    rules: []
+  podSecurityPolicy:
+    enabled: false
+  networkPolicy:
+    enabled: true
+    denyAll: true
+    allowDNS: true
+    allowHTTPS: true
+    customRules: []
+
+# Application configuration
+app:
+  name: secure-api-system
+  version: "1.0.0"
+  environment: development
+
+# Image configuration
+image:
+  registry: ghcr.io
+  repository: secure-api-system
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Frontend configuration
+frontend:
+  enabled: true
+  name: frontend
+  replicaCount: 2
+  
+  image:
+    repository: frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    hosts:
+      - host: secure-api.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: secure-api-tls
+        hosts:
+          - secure-api.local
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: REACT_APP_API_URL
+      value: "https://secure-api.local/api"
+
+# Backend configuration
+backend:
+  enabled: true
+  name: backend
+  replicaCount: 3
+  
+  image:
+    repository: backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    hosts:
+      - host: secure-api.local
+        paths:
+          - path: /api
+            pathType: Prefix
+    tls:
+      - secretName: secure-api-tls
+        hosts:
+          - secure-api.local
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: "production"
+    - name: SPRING_DATASOURCE_URL
+      value: "jdbc:mysql://mysql:3306/secure_api"
+    - name: SPRING_DATASOURCE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: mysql-secret
+          key: username
+    - name: SPRING_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: mysql-secret
+          key: password
+    - name: SPRING_REDIS_HOST
+      value: "redis"
+    - name: SPRING_REDIS_PORT
+      value: "6379"
+    - name: SPRING_REDIS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: redis-secret
+          key: password
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: app-secret
+          key: jwt-secret
+    - name: ENCRYPTION_KEY
+      valueFrom:
+        secretKeyRef:
+          name: app-secret
+          key: encryption-key
+
+# MySQL configuration
+mysql:
+  enabled: true
+  name: mysql
+  
+  image:
+    repository: mysql
+    tag: "8.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 3306
+    targetPort: 3306
+  
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 20Gi
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  config:
+    rootPassword: "root123456"
+    database: "secure_api"
+    username: "app_user"
+    password: "app_password"
+  
+  initdb:
+    enabled: true
+    scripts:
+      init.sql: |
+        CREATE DATABASE IF NOT EXISTS secure_api;
+        CREATE USER IF NOT EXISTS 'app_user'@'%' IDENTIFIED BY 'app_password';
+        GRANT ALL PRIVILEGES ON secure_api.* TO 'app_user'@'%';
+        FLUSH PRIVILEGES;
+
+# Redis configuration
+redis:
+  enabled: true
+  name: redis
+  
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 6379
+    targetPort: 6379
+  
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 5Gi
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  config:
+    password: "redis123456"
+    maxmemory: "256mb"
+    maxmemoryPolicy: "allkeys-lru"
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  
+  prometheus:
+    enabled: true
+    name: prometheus
+    
+    service:
+      type: ClusterIP
+      port: 9090
+      targetPort: 9090
+    
+    ingress:
+      enabled: true
+      className: nginx
+      annotations:
+        nginx.ingress.kubernetes.io/auth-type: basic
+        nginx.ingress.kubernetes.io/auth-secret: prometheus-auth
+      hosts:
+        - host: prometheus.secure-api.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: prometheus-tls
+          hosts:
+            - prometheus.secure-api.local
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    
+    persistence:
+      enabled: true
+      storageClass: ""
+      accessMode: ReadWriteOnce
+      size: 10Gi
+  
+  grafana:
+    enabled: true
+    name: grafana
+    
+    service:
+      type: ClusterIP
+      port: 3000
+      targetPort: 3000
+    
+    ingress:
+      enabled: true
+      className: nginx
+      annotations:
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      hosts:
+        - host: grafana.secure-api.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: grafana-tls
+          hosts:
+            - grafana.secure-api.local
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    
+    persistence:
+      enabled: true
+      storageClass: ""
+      accessMode: ReadWriteOnce
+      size: 5Gi
+    
+    config:
+      adminUser: admin
+      adminPassword: admin123456
+
+# Security configuration
+security:
+  networkPolicies:
+    enabled: true
+  
+  podSecurityPolicy:
+    enabled: true
+  
+  rbac:
+    enabled: true
+  
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+# Secrets configuration
+secrets:
+  mysql:
+    username: "YXBwX3VzZXI="  # base64: app_user
+    password: "YXBwX3Bhc3N3b3Jk"  # base64: app_password
+  
+  redis:
+    password: "cmVkaXMxMjM0NTY="  # base64: redis123456
+  
+  app:
+    jwtSecret: "bXlfc3VwZXJfc2VjcmV0X2p3dF9rZXlfZm9yX3Byb2R1Y3Rpb24="  # base64: my_super_secret_jwt_key_for_production
+    encryptionKey: "bXlfc3VwZXJfc2VjcmV0X2VuY3J5cHRpb25fa2V5X2Zvcl9wcm9kdWN0aW9u"  # base64: my_super_secret_encryption_key_for_production
+
+# ConfigMaps configuration
+configMaps:
+  app:
+    data:
+      application.properties: |
+        # Application configuration
+        spring.application.name=secure-api-system
+        server.port=8080
+        
+        # Database configuration
+        spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+        spring.jpa.hibernate.ddl-auto=validate
+        spring.jpa.show-sql=false
+        spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+        
+        # Redis configuration
+        spring.redis.timeout=2000ms
+        spring.redis.lettuce.pool.max-active=8
+        spring.redis.lettuce.pool.max-idle=8
+        spring.redis.lettuce.pool.min-idle=0
+        
+        # Security configuration
+        jwt.expiration=86400
+        encryption.algorithm=AES
+        
+        # Actuator configuration
+        management.endpoints.web.exposure.include=health,info,metrics,prometheus
+        management.endpoint.health.show-details=when-authorized
+        management.metrics.export.prometheus.enabled=true
+
+# Storage configuration
+persistence:
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+# Load balancer configuration
+loadBalancer:
+  enabled: false
+  type: LoadBalancer
+  annotations: {}
+
+# Certificate configuration
+certificates:
+  enabled: true
+  issuer: letsencrypt-prod
+  dnsNames:
+    - secure-api.local
+    - prometheus.secure-api.local
+    - grafana.secure-api.local
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  frontend:
+    enabled: true
+    minAvailable: 1
+  backend:
+    enabled: true
+    minAvailable: 2
+  mysql:
+    enabled: true
+    minAvailable: 1
+  redis:
+    enabled: true
+    minAvailable: 1
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  scrapeInterval: 30s
+  scrapeTimeout: 10s
+  
+  frontend:
+    enabled: false
+    metricsPath: /metrics
+  
+  basicAuth:
+    enabled: false
+    username: ""
+    password: ""
+  
+  alerts:
+    applicationDown:
+      duration: 1m
+    errorRate:
+      threshold: 5
+      duration: 2m
+    responseTime:
+      threshold: 1
+      duration: 5m
+    memoryUsage:
+      threshold: 80
+      duration: 5m
+    cpuUsage:
+      threshold: 80
+      duration: 5m
+    dbConnectionPool:
+      duration: 2m
+    jvmHeap:
+      threshold: 85
+      duration: 5m
+
+# Logging configuration
+logging:
+  enabled: true
+  
+  fluentBit:
+    image:
+      repository: fluent/fluent-bit
+      tag: "2.2"
+      pullPolicy: IfNotPresent
+    logLevel: info
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+  
+  elasticsearch:
+    enabled: true
+    host: elasticsearch
+    port: 9200
+    index: secure-api-system
+    logstashPrefix: secure-api-system
+    retryLimit: 5
+    bufferSize: 4KB
+    
+    auth:
+      enabled: false
+      username: ""
+      password: ""
+    
+    tls:
+      enabled: false
+      verify: "On"
+      ca_file: ""
+  
+  kibana:
+    enabled: true
+  
+  logRotation:
+    enabled: true
+    schedule: "0 2 * * *"
+    retentionDays: 30
+    compressDays: 7
+    image:
+      repository: alpine
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+# Backup configuration
+backup:
+  enabled: true
+  
+  database:
+    schedule: "0 2 * * *"
+    backoffLimit: 3
+    timeout: 3600
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 1
+    image:
+      repository: mysql
+      tag: "8.0"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  redis:
+    enabled: true
+    schedule: "0 3 * * *"
+    image:
+      repository: redis
+      tag: "7-alpine"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  
+  storage:
+    size: 10Gi
+    storageClass: ""
+  
+  retention:
+    enabled: true
+    days: 30
+  
+  s3:
+    enabled: false
+    bucket: ""
+    prefix: "database-backups"
+    region: "us-east-1"
+    storageClass: "STANDARD_IA"
+    accessKey: ""
+    secretKey: ""
+    encryptionKey: ""
+  
+  verification:
+    enabled: true
+    schedule: "0 4 * * 0"
+    image:
+      repository: mysql
+      tag: "8.0"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Testing configuration
+testing:
+  performance:
+    enabled: false
+    image:
+      repository: grafana/k6
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    virtualUsers: 10
+    duration: "5m"
+    timeout: 3600
+    backoffLimit: 3
+    
+    thresholds:
+      enabled: true
+      p95: "500ms"
+      errorRate: "0.1"
+    
+    auth:
+      enabled: false
+      token: ""
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    
+    env: []
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+  
+  security:
+    enabled: false
+    image:
+      repository: owasp/zap2docker-stable
+      tag: "stable"
+      pullPolicy: IfNotPresent
+    passive: false
+    configFile: ""
+    timeout: 1800
+    backoffLimit: 3
+    
+    auth:
+      enabled: false
+      method: "form"
+      loginUrl: "/login"
+      username: "testuser"
+      password: ""
+    
+    scanStrength: "medium"
+    scanThreshold: "medium"
+    
+    dependencyCheck:
+      image:
+        repository: owasp/dependency-check
+        tag: "latest"
+        pullPolicy: IfNotPresent
+      nvdApiKey: ""
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+    
+    schedule:
+      enabled: false
+      cron: "0 2 * * 0"
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+      storage: "1Gi"
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+    
+    env: []
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
+# TLS configuration
+tls:
+  enabled: true
+  secretName: secure-api-tls
+  cert: ""
+  key: ""
+  issuer:
+    enabled: false
+    name: letsencrypt-prod
+    email: ""
+
+# Dependencies configuration
+dependencies:
+  mysql:
+    enabled: true
+    version: "9.4.6"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: mysql.enabled
+  
+  redis:
+    enabled: true
+    version: "17.3.7"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+  
+  prometheus:
+    enabled: false
+    version: "15.5.3"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: monitoring.enabled
+  
+  grafana:
+    enabled: false
+    version: "6.50.7"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: monitoring.enabled
+  
+  elasticsearch:
+    enabled: false
+    version: "7.17.3"
+    repository: "https://helm.elastic.co"
+    condition: logging.elasticsearch.enabled
+  
+  kibana:
+    enabled: false
+    version: "7.17.3"
+    repository: "https://helm.elastic.co"
+    condition: logging.kibana.enabled
+  
+  redis:
+    enabled: true
+    storage:
+      size: 5Gi
+      storageClass: ""
+
+# Logging configuration
+logging:
+  enabled: true
+  level: INFO
+  
+  fluentd:
+    enabled: false
+  
+  elasticsearch:
+    enabled: false
+
+# Testing configuration
+testing:
+  enabled: false
+  
+  e2e:
+    enabled: false
+    image:
+      repository: playwright
+      tag: latest
+  
+  performance:
+    enabled: false
+    image:
+      repository: loadimpact/k6
+      tag: latest

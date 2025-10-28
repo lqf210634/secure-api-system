@@ -1,0 +1,369 @@
+# Staging environment values for secure-api-system
+# This file overrides the default values.yaml for staging environment
+
+# Global configuration
+global:
+  imageRegistry: "ghcr.io"
+  imagePullSecrets:
+    - name: ghcr-secret
+
+# Application configuration
+app:
+  environment: staging
+
+# Image configuration
+image:
+  tag: staging
+
+# Frontend configuration
+frontend:
+  replicaCount: 1
+  
+  ingress:
+    hosts:
+      - host: staging.secure-api.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: staging-secure-api-tls
+        hosts:
+          - staging.secure-api.local
+  
+  resources:
+    limits:
+      cpu: 300m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+  
+  env:
+    - name: NODE_ENV
+      value: "staging"
+    - name: REACT_APP_API_URL
+      value: "https://staging.secure-api.local/api"
+    - name: REACT_APP_ENVIRONMENT
+      value: "staging"
+
+# Backend configuration
+backend:
+  replicaCount: 2
+  
+  ingress:
+    hosts:
+      - host: staging.secure-api.local
+        paths:
+          - path: /api
+            pathType: Prefix
+    tls:
+      - secretName: staging-secure-api-tls
+        hosts:
+          - staging.secure-api.local
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+  
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: "staging"
+    - name: SPRING_DATASOURCE_URL
+      value: "jdbc:mysql://mysql:3306/secure_api_staging"
+    - name: SPRING_DATASOURCE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: mysql-secret
+          key: username
+    - name: SPRING_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: mysql-secret
+          key: password
+    - name: SPRING_REDIS_HOST
+      value: "redis"
+    - name: SPRING_REDIS_PORT
+      value: "6379"
+    - name: SPRING_REDIS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: redis-secret
+          key: password
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: app-secret
+          key: jwt-secret
+    - name: ENCRYPTION_KEY
+      valueFrom:
+        secretKeyRef:
+          name: app-secret
+          key: encryption-key
+    - name: LOGGING_LEVEL_ROOT
+      value: "DEBUG"
+    - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+      value: "health,info,metrics,prometheus,env,configprops"
+
+# MySQL configuration
+mysql:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  
+  persistence:
+    size: 10Gi
+  
+  config:
+    database: "secure_api_staging"
+    username: "staging_user"
+    password: "staging_password"
+  
+  initdb:
+    scripts:
+      init.sql: |
+        CREATE DATABASE IF NOT EXISTS secure_api_staging;
+        CREATE USER IF NOT EXISTS 'staging_user'@'%' IDENTIFIED BY 'staging_password';
+        GRANT ALL PRIVILEGES ON secure_api_staging.* TO 'staging_user'@'%';
+        FLUSH PRIVILEGES;
+
+# Redis configuration
+redis:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  persistence:
+    size: 2Gi
+  
+  config:
+    password: "staging_redis_password"
+    maxmemory: "128mb"
+
+# Monitoring configuration
+monitoring:
+  prometheus:
+    ingress:
+      hosts:
+        - host: prometheus.staging.secure-api.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: prometheus-staging-tls
+          hosts:
+            - prometheus.staging.secure-api.local
+    
+    resources:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    
+    persistence:
+      size: 5Gi
+  
+  grafana:
+    ingress:
+      hosts:
+        - host: grafana.staging.secure-api.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: grafana-staging-tls
+          hosts:
+            - grafana.staging.secure-api.local
+    
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    
+    persistence:
+      size: 2Gi
+    
+    config:
+      adminUser: admin
+      adminPassword: staging123456
+
+# Secrets configuration (staging-specific)
+secrets:
+  mysql:
+    username: "c3RhZ2luZ191c2Vy"  # base64: staging_user
+    password: "c3RhZ2luZ19wYXNzd29yZA=="  # base64: staging_password
+  
+  redis:
+    password: "c3RhZ2luZ19yZWRpc19wYXNzd29yZA=="  # base64: staging_redis_password
+  
+  app:
+    jwtSecret: "c3RhZ2luZ19qd3Rfc2VjcmV0X2tleQ=="  # base64: staging_jwt_secret_key
+    encryptionKey: "c3RhZ2luZ19lbmNyeXB0aW9uX2tleQ=="  # base64: staging_encryption_key
+
+# ConfigMaps configuration (staging-specific)
+configMaps:
+  app:
+    data:
+      application.properties: |
+        # Staging environment configuration
+        spring.application.name=secure-api-system-staging
+        server.port=8080
+        
+        # Database configuration
+        spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+        spring.jpa.hibernate.ddl-auto=update
+        spring.jpa.show-sql=true
+        spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+        spring.jpa.properties.hibernate.format_sql=true
+        
+        # Redis configuration
+        spring.redis.timeout=2000ms
+        spring.redis.lettuce.pool.max-active=4
+        spring.redis.lettuce.pool.max-idle=4
+        spring.redis.lettuce.pool.min-idle=0
+        
+        # Security configuration
+        jwt.expiration=3600
+        encryption.algorithm=AES
+        
+        # Actuator configuration
+        management.endpoints.web.exposure.include=*
+        management.endpoint.health.show-details=always
+        management.metrics.export.prometheus.enabled=true
+        
+        # Logging configuration
+        logging.level.com.secureapi=DEBUG
+        logging.level.org.springframework.security=DEBUG
+        logging.level.org.springframework.web=DEBUG
+        
+        # CORS configuration (more permissive for staging)
+        cors.allowed-origins=https://staging.secure-api.local,http://localhost:3000
+        cors.allowed-methods=GET,POST,PUT,DELETE,OPTIONS
+        cors.allowed-headers=*
+        cors.allow-credentials=true
+
+# Certificate configuration
+certificates:
+  dnsNames:
+    - staging.secure-api.local
+    - prometheus.staging.secure-api.local
+    - grafana.staging.secure-api.local
+
+# Backup configuration (less frequent for staging)
+backup:
+  schedule: "0 4 * * 0"  # Weekly on Sunday at 4 AM
+  retention: "7d"
+  
+  mysql:
+    storage:
+      size: 5Gi
+  
+  redis:
+    storage:
+      size: 2Gi
+
+# Logging configuration (more verbose for staging)
+logging:
+  level: DEBUG
+  
+  fluentd:
+    enabled: true
+  
+  elasticsearch:
+    enabled: true
+
+# Testing configuration (enabled for staging)
+testing:
+  enabled: true
+  
+  e2e:
+    enabled: true
+    schedule: "0 6 * * *"  # Daily at 6 AM
+    
+    env:
+      - name: BASE_URL
+        value: "https://staging.secure-api.local"
+      - name: API_URL
+        value: "https://staging.secure-api.local/api"
+      - name: TEST_USER_EMAIL
+        value: "test@example.com"
+      - name: TEST_USER_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: test-secret
+            key: password
+  
+  performance:
+    enabled: true
+    schedule: "0 7 * * 0"  # Weekly on Sunday at 7 AM
+    
+    env:
+      - name: TARGET_URL
+        value: "https://staging.secure-api.local"
+      - name: VUS
+        value: "10"
+      - name: DURATION
+        value: "5m"
+
+# Resource quotas for staging namespace
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "2"
+    requests.memory: "4Gi"
+    limits.cpu: "4"
+    limits.memory: "8Gi"
+    persistentvolumeclaims: "10"
+
+# Network policies (more restrictive for staging)
+networkPolicies:
+  enabled: true
+  
+  # Allow ingress traffic only from ingress controller
+  ingress:
+    enabled: true
+    from:
+      - namespaceSelector:
+          matchLabels:
+            name: ingress-nginx
+  
+  # Allow egress traffic to specific destinations
+  egress:
+    enabled: true
+    to:
+      - namespaceSelector:
+          matchLabels:
+            name: kube-system
+      - podSelector:
+          matchLabels:
+            app: mysql
+      - podSelector:
+          matchLabels:
+            app: redis

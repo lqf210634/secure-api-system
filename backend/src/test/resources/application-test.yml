@@ -1,0 +1,145 @@
+# 测试环境配置
+spring:
+  profiles:
+    active: test
+  
+  # 数据库配置 - 使用H2内存数据库
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    
+  # H2数据库控制台
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+        
+  # Redis配置 - 使用嵌入式Redis
+  redis:
+    host: localhost
+    port: 6379
+    database: 1
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1ms
+        
+  # 邮件配置 - 测试环境使用Mock
+  mail:
+    host: smtp.test.com
+    port: 587
+    username: test@test.com
+    password: testpassword
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            
+# MyBatis Plus配置
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      
+# JWT配置
+jwt:
+  secret: test-secret-key-for-jwt-token-generation-in-test-environment
+  expiration: 3600000 # 1小时
+  
+# 安全配置
+security:
+  # RSA密钥对（测试用）
+  rsa:
+    public-key: |
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
+      -----END PUBLIC KEY-----
+    private-key: |
+      -----BEGIN PRIVATE KEY-----
+      MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDXYZ...
+      -----END PRIVATE KEY-----
+      
+  # 密码加密
+  password:
+    encoder: bcrypt
+    strength: 10
+    
+  # 验证码配置
+  captcha:
+    length: 4
+    width: 120
+    height: 40
+    expire: 300 # 5分钟
+    
+  # 短信配置
+  sms:
+    provider: mock # 测试环境使用mock
+    expire: 300 # 5分钟
+    
+# 审计日志配置
+audit:
+  enabled: true
+  async: true
+  retention-days: 30
+  
+# 日志配置
+logging:
+  level:
+    com.siku: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    org.mybatis: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    
+# 测试专用配置
+test:
+  # 禁用某些功能
+  disable:
+    security: false
+    redis: false
+    email: true
+    sms: true
+    
+  # 模拟数据
+  mock:
+    users:
+      - username: testuser
+        password: password123
+        email: test@example.com
+        roles: [USER]
+      - username: admin
+        password: admin123
+        email: admin@example.com
+        roles: [ADMIN, USER]
+        
+# 管理端点配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

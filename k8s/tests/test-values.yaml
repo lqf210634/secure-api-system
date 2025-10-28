@@ -1,0 +1,185 @@
+# Test values for secure-api-system Helm chart
+# This file contains minimal configuration for testing chart rendering
+
+global:
+  environment: test
+  storageClass: "standard"
+
+# Application configuration
+app:
+  name: secure-api-system-test
+  version: "1.0.0"
+  environment: test
+
+# Frontend configuration
+frontend:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: nginx
+    tag: "alpine"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  
+  service:
+    type: ClusterIP
+    port: 80
+  
+  ingress:
+    enabled: false
+
+# Backend configuration
+backend:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: openjdk
+    tag: "11-jre-slim"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  service:
+    type: ClusterIP
+    port: 8080
+  
+  ingress:
+    enabled: false
+
+# Database configuration
+mysql:
+  enabled: false
+  external:
+    enabled: false
+
+# Redis configuration
+redis:
+  enabled: false
+  external:
+    enabled: false
+
+# Security configuration
+security:
+  rbac:
+    enabled: true
+  networkPolicy:
+    enabled: false
+  podSecurityPolicy:
+    enabled: false
+
+# Service account
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  frontend:
+    enabled: false
+  backend:
+    enabled: false
+
+# Monitoring configuration
+monitoring:
+  enabled: false
+
+# Logging configuration
+logging:
+  enabled: false
+
+# Backup configuration
+backup:
+  enabled: false
+
+# Testing configuration
+testing:
+  performance:
+    enabled: false
+  security:
+    enabled: false
+
+# TLS configuration
+tls:
+  enabled: false
+
+# External dependencies
+externalDependencies:
+  mysql:
+    enabled: false
+  redis:
+    enabled: false
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false
+  elasticsearch:
+    enabled: false
+  kibana:
+    enabled: false
+
+# Application-specific configuration
+application:
+  profile: test
+  
+  cors:
+    allowedOrigins: ["*"]
+    allowedMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowedHeaders: ["*"]
+    allowCredentials: false
+  
+  security:
+    sessionTimeout: 1800
+    maxLoginAttempts: 5
+    lockoutDuration: 300
+  
+  performance:
+    tomcat:
+      maxThreads: 10
+      minSpareThreads: 2
+      maxConnections: 100
+    hikari:
+      maximumPoolSize: 2
+      minimumIdle: 1
+      connectionTimeout: 20000
+      idleTimeout: 300000
+      maxLifetime: 1200000
+
+# ConfigMaps
+configMaps:
+  application:
+    enabled: true
+    data:
+      "application.properties": |
+        # Test configuration
+        spring.profiles.active=test
+        server.port=8080
+        management.endpoints.web.exposure.include=health,info,metrics
+
+# Secrets (using dummy values for testing)
+secrets:
+  mysql:
+    enabled: false
+  redis:
+    enabled: false
+  jwt:
+    enabled: true
+    secret: "test-jwt-secret-key-for-testing-only"
+  encryption:
+    enabled: true
+    key: "test-encryption-key-32-chars-long"

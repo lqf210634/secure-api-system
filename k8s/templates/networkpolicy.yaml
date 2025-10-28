@@ -1,0 +1,300 @@
+{{- if .Values.security.networkPolicies.enabled }}
+# Default deny all ingress traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-default-deny-ingress
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+
+---
+# Default deny all egress traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-default-deny-egress
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+
+{{- if .Values.frontend.enabled }}
+---
+# Frontend ingress policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-frontend-ingress
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.frontend.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "secure-api-system.frontend.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow ingress from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: {{ .Values.frontend.service.port }}
+  {{- if .Values.security.networkPolicies.ingress.rules }}
+  {{- range .Values.security.networkPolicies.ingress.rules }}
+  - from:
+    {{- toYaml .from | nindent 4 }}
+    ports:
+    {{- toYaml .ports | nindent 4 }}
+  {{- end }}
+  {{- end }}
+
+---
+# Frontend egress policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-frontend-egress
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.frontend.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "secure-api-system.frontend.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Egress
+  egress:
+  # Allow egress to backend
+  - to:
+    - podSelector:
+        matchLabels:
+          {{- include "secure-api-system.backend.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.backend.service.port }}
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+  # Allow HTTPS for external APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+{{- end }}
+
+{{- if .Values.backend.enabled }}
+---
+# Backend ingress policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-backend-ingress
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.backend.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "secure-api-system.backend.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow ingress from frontend
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "secure-api-system.frontend.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.backend.service.port }}
+  # Allow ingress from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: {{ .Values.backend.service.port }}
+  # Allow monitoring from Prometheus
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: {{ .Values.backend.actuator.port | default 8081 }}
+  {{- if .Values.security.networkPolicies.ingress.rules }}
+  {{- range .Values.security.networkPolicies.ingress.rules }}
+  - from:
+    {{- toYaml .from | nindent 4 }}
+    ports:
+    {{- toYaml .ports | nindent 4 }}
+  {{- end }}
+  {{- end }}
+
+---
+# Backend egress policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-backend-egress
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.backend.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "secure-api-system.backend.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Egress
+  egress:
+  # Allow egress to MySQL
+  {{- if .Values.mysql.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: mysql
+          app.kubernetes.io/instance: {{ .Release.Name }}
+    ports:
+    - protocol: TCP
+      port: 3306
+  {{- else }}
+  - to: []
+    ports:
+    - protocol: TCP
+      port: {{ .Values.externalDatabase.port | default 3306 }}
+  {{- end }}
+  # Allow egress to Redis
+  {{- if .Values.redis.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: redis
+          app.kubernetes.io/instance: {{ .Release.Name }}
+    ports:
+    - protocol: TCP
+      port: 6379
+  {{- else }}
+  - to: []
+    ports:
+    - protocol: TCP
+      port: {{ .Values.externalRedis.port | default 6379 }}
+  {{- end }}
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+  # Allow HTTPS for external APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  {{- if .Values.security.networkPolicies.egress.rules }}
+  {{- range .Values.security.networkPolicies.egress.rules }}
+  - to:
+    {{- toYaml .to | nindent 4 }}
+    ports:
+    {{- toYaml .ports | nindent 4 }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- if .Values.mysql.enabled }}
+---
+# MySQL ingress policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-mysql-ingress
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mysql
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow ingress from backend
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "secure-api-system.backend.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 3306
+  # Allow ingress from backup jobs
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: backup
+    ports:
+    - protocol: TCP
+      port: 3306
+{{- end }}
+
+{{- if .Values.redis.enabled }}
+---
+# Redis ingress policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-redis-ingress
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow ingress from backend
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "secure-api-system.backend.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow ingress from backup jobs
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: backup
+    ports:
+    - protocol: TCP
+      port: 6379
+{{- end }}
+{{- end }}

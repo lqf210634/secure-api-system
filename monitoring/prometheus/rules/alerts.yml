@@ -1,0 +1,285 @@
+groups:
+  # 应用程序告警
+  - name: application.rules
+    rules:
+      # 后端服务不可用
+      - alert: BackendServiceDown
+        expr: up{job="secure-api-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "Backend service is down"
+          description: "Backend service {{ $labels.instance }} has been down for more than 1 minute."
+
+      # 前端服务不可用
+      - alert: FrontendServiceDown
+        expr: up{job="secure-api-frontend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: frontend
+        annotations:
+          summary: "Frontend service is down"
+          description: "Frontend service {{ $labels.instance }} has been down for more than 1 minute."
+
+      # 高错误率
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.instance }}."
+
+      # 响应时间过长
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s for {{ $labels.instance }}."
+
+      # JVM内存使用率过高
+      - alert: HighJVMMemoryUsage
+        expr: jvm_memory_used_bytes / jvm_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High JVM memory usage"
+          description: "JVM memory usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}."
+
+      # GC时间过长
+      - alert: HighGCTime
+        expr: rate(jvm_gc_collection_seconds_sum[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High GC time detected"
+          description: "GC time is {{ $value }}s/s for {{ $labels.instance }}."
+
+  # 数据库告警
+  - name: database.rules
+    rules:
+      # MySQL服务不可用
+      - alert: MySQLServiceDown
+        expr: up{job="mysql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: mysql
+        annotations:
+          summary: "MySQL service is down"
+          description: "MySQL service {{ $labels.instance }} has been down for more than 1 minute."
+
+      # MySQL连接数过高
+      - alert: MySQLHighConnections
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: mysql
+        annotations:
+          summary: "MySQL high connections"
+          description: "MySQL connections usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}."
+
+      # MySQL慢查询过多
+      - alert: MySQLHighSlowQueries
+        expr: rate(mysql_global_status_slow_queries[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: mysql
+        annotations:
+          summary: "MySQL high slow queries"
+          description: "MySQL slow queries rate is {{ $value }}/s for {{ $labels.instance }}."
+
+      # MySQL复制延迟
+      - alert: MySQLReplicationLag
+        expr: mysql_slave_lag_seconds > 30
+        for: 2m
+        labels:
+          severity: warning
+          service: mysql
+        annotations:
+          summary: "MySQL replication lag"
+          description: "MySQL replication lag is {{ $value }}s for {{ $labels.instance }}."
+
+  # Redis告警
+  - name: redis.rules
+    rules:
+      # Redis服务不可用
+      - alert: RedisServiceDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis service is down"
+          description: "Redis service {{ $labels.instance }} has been down for more than 1 minute."
+
+      # Redis内存使用率过高
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Redis high memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}."
+
+      # Redis连接数过高
+      - alert: RedisHighConnections
+        expr: redis_connected_clients > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Redis high connections"
+          description: "Redis has {{ $value }} connected clients for {{ $labels.instance }}."
+
+  # 系统资源告警
+  - name: system.rules
+    rules:
+      # CPU使用率过高
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% for {{ $labels.instance }}."
+
+      # 内存使用率过高
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}."
+
+      # 磁盘使用率过高
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High disk usage"
+          description: "Disk usage is {{ $value | humanizePercentage }} for {{ $labels.instance }} on {{ $labels.mountpoint }}."
+
+      # 磁盘IO过高
+      - alert: HighDiskIO
+        expr: rate(node_disk_io_time_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High disk I/O"
+          description: "Disk I/O usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}."
+
+  # 网络告警
+  - name: network.rules
+    rules:
+      # 网络错误率过高
+      - alert: HighNetworkErrors
+        expr: rate(node_network_receive_errs_total[5m]) + rate(node_network_transmit_errs_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: network
+        annotations:
+          summary: "High network errors"
+          description: "Network error rate is {{ $value }}/s for {{ $labels.instance }} on {{ $labels.device }}."
+
+      # 网络带宽使用率过高
+      - alert: HighNetworkBandwidth
+        expr: rate(node_network_receive_bytes_total[5m]) + rate(node_network_transmit_bytes_total[5m]) > 100000000
+        for: 5m
+        labels:
+          severity: warning
+          service: network
+        annotations:
+          summary: "High network bandwidth usage"
+          description: "Network bandwidth usage is {{ $value | humanize }}B/s for {{ $labels.instance }} on {{ $labels.device }}."
+
+  # 安全告警
+  - name: security.rules
+    rules:
+      # 登录失败次数过多
+      - alert: HighLoginFailures
+        expr: rate(login_attempts_total{status="failed"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "High login failure rate"
+          description: "Login failure rate is {{ $value }}/s for {{ $labels.instance }}."
+
+      # 可疑的API调用
+      - alert: SuspiciousAPIActivity
+        expr: rate(http_requests_total{status="401"}[5m]) > 50
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "Suspicious API activity detected"
+          description: "High rate of 401 responses: {{ $value }}/s for {{ $labels.instance }}."
+
+      # 账户锁定事件
+      - alert: AccountLockoutEvents
+        expr: rate(account_lockout_total[5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          service: security
+        annotations:
+          summary: "High account lockout rate"
+          description: "Account lockout rate is {{ $value }}/s for {{ $labels.instance }}."
+
+  # 业务指标告警
+  - name: business.rules
+    rules:
+      # API调用量异常下降
+      - alert: LowAPITraffic
+        expr: rate(http_requests_total[5m]) < 1
+        for: 10m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "Low API traffic"
+          description: "API traffic is unusually low: {{ $value }}/s for {{ $labels.instance }}."
+
+      # 用户注册量异常
+      - alert: UnusualUserRegistrations
+        expr: rate(user_registrations_total[1h]) > 100 or rate(user_registrations_total[1h]) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "Unusual user registration rate"
+          description: "User registration rate is {{ $value }}/h for {{ $labels.instance }}."

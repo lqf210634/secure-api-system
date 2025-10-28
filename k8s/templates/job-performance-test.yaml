@@ -1,0 +1,148 @@
+{{- if .Values.testing.performance.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-performance-test
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: performance-test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.testing.performance.backoffLimit | default 3 }}
+  activeDeadlineSeconds: {{ .Values.testing.performance.timeout | default 3600 }}
+  template:
+    metadata:
+      labels:
+        {{- include "secure-api-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: performance-test
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "secure-api-system.serviceAccountName" . }}
+      {{- with .Values.testing.performance.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.testing.performance.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.testing.performance.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: k6-performance-test
+        image: {{ .Values.testing.performance.image.repository }}:{{ .Values.testing.performance.image.tag | default "latest" }}
+        imagePullPolicy: {{ .Values.testing.performance.image.pullPolicy | default "IfNotPresent" }}
+        command:
+        - k6
+        - run
+        - --vus={{ .Values.testing.performance.virtualUsers | default 10 }}
+        - --duration={{ .Values.testing.performance.duration | default "5m" }}
+        - --out=json=/tmp/results.json
+        {{- if .Values.testing.performance.thresholds.enabled }}
+        - --threshold=http_req_duration{p(95)}<{{ .Values.testing.performance.thresholds.p95 | default "500ms" }}
+        - --threshold=http_req_failed<{{ .Values.testing.performance.thresholds.errorRate | default "0.1" }}
+        {{- end }}
+        - /scripts/performance-test.js
+        env:
+        - name: BASE_URL
+          value: "http://{{ include "secure-api-system.fullname" . }}-backend:{{ .Values.backend.service.port }}"
+        - name: FRONTEND_URL
+          value: "http://{{ include "secure-api-system.fullname" . }}-frontend:{{ .Values.frontend.service.port }}"
+        - name: TEST_DURATION
+          value: "{{ .Values.testing.performance.duration | default "5m" }}"
+        - name: VIRTUAL_USERS
+          value: "{{ .Values.testing.performance.virtualUsers | default 10 }}"
+        {{- if .Values.testing.performance.auth.enabled }}
+        - name: AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "secure-api-system.fullname" . }}-test-auth
+              key: token
+        {{- end }}
+        {{- with .Values.testing.performance.env }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.testing.performance.resources | nindent 10 }}
+        volumeMounts:
+        - name: test-scripts
+          mountPath: /scripts
+          readOnly: true
+        - name: test-results
+          mountPath: /tmp
+      volumes:
+      - name: test-scripts
+        configMap:
+          name: {{ include "secure-api-system.fullname" . }}-performance-test-scripts
+          defaultMode: 0755
+      - name: test-results
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-performance-test-scripts
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: performance-test
+data:
+  performance-test.js: |
+    import http from 'k6/http';
+    import { check, sleep } from 'k6';
+    import { Rate } from 'k6/metrics';
+
+    const errorRate = new Rate('errors');
+    const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+    const FRONTEND_URL = __ENV.FRONTEND_URL || 'http://localhost:3000';
+
+    export let options = {
+      vus: parseInt(__ENV.VIRTUAL_USERS) || 10,
+      duration: __ENV.TEST_DURATION || '5m',
+      thresholds: {
+        http_req_duration: ['p(95)<500'],
+        errors: ['rate<0.1'],
+      },
+    };
+
+    export default function() {
+      // Test API endpoints
+      let apiTests = [
+        { name: 'Health Check', url: `${BASE_URL}/actuator/health` },
+        { name: 'API Info', url: `${BASE_URL}/actuator/info` },
+        { name: 'Metrics', url: `${BASE_URL}/actuator/metrics` },
+      ];
+
+      apiTests.forEach(test => {
+        let response = http.get(test.url);
+        let result = check(response, {
+          [`${test.name} - status is 200`]: (r) => r.status === 200,
+          [`${test.name} - response time < 500ms`]: (r) => r.timings.duration < 500,
+        });
+        errorRate.add(!result);
+      });
+
+      // Test frontend
+      let frontendResponse = http.get(FRONTEND_URL);
+      let frontendResult = check(frontendResponse, {
+        'Frontend - status is 200': (r) => r.status === 200,
+        'Frontend - response time < 1000ms': (r) => r.timings.duration < 1000,
+      });
+      errorRate.add(!frontendResult);
+
+      sleep(1);
+    }
+
+    export function handleSummary(data) {
+      return {
+        '/tmp/results.json': JSON.stringify(data),
+      };
+    }
+{{- end }}

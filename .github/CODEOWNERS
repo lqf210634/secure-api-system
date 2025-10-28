@@ -1,0 +1,208 @@
+# Code Owners for secure-api-system
+# This file defines who should review specific parts of the codebase
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owners - these users will be requested for review on all PRs
+* @team-leads @security-team
+
+# ================================
+# Backend Code Ownership
+# ================================
+
+# All backend code
+/backend/ @backend-team @security-team
+
+# Java source code
+/backend/src/ @backend-team
+/backend/src/main/java/com/example/security/ @security-team @backend-team
+/backend/src/main/java/com/example/auth/ @security-team @backend-team
+/backend/src/main/java/com/example/config/ @security-team @backend-team @devops-team
+
+# Backend configuration files
+/backend/src/main/resources/ @backend-team @security-team
+/backend/src/main/resources/application*.yml @security-team @backend-team @devops-team
+/backend/src/main/resources/application*.properties @security-team @backend-team @devops-team
+
+# Backend build and dependency files
+/backend/pom.xml @backend-team @devops-team @security-team
+/backend/Dockerfile @backend-team @devops-team @security-team
+
+# Backend tests
+/backend/src/test/ @backend-team
+
+# ================================
+# Frontend Code Ownership  
+# ================================
+
+# All frontend code
+/frontend/ @frontend-team @security-team
+
+# React components
+/frontend/src/components/ @frontend-team
+/frontend/src/components/auth/ @security-team @frontend-team
+/frontend/src/components/security/ @security-team @frontend-team
+
+# Frontend configuration and routing
+/frontend/src/config/ @frontend-team @security-team
+/frontend/src/routes/ @frontend-team @security-team
+/frontend/src/utils/auth.ts @security-team @frontend-team
+/frontend/src/utils/security.ts @security-team @frontend-team
+
+# Frontend build and dependency files
+/frontend/package*.json @frontend-team @devops-team @security-team
+/frontend/Dockerfile @frontend-team @devops-team @security-team
+/frontend/nginx.conf @frontend-team @devops-team @security-team
+
+# Frontend environment files
+/frontend/.env* @security-team @frontend-team @devops-team
+
+# Frontend tests
+/frontend/src/**/*.test.* @frontend-team
+/frontend/src/**/*.spec.* @frontend-team
+
+# ================================
+# Infrastructure and DevOps
+# ================================
+
+# GitHub workflows and actions
+/.github/ @devops-team @security-team
+/.github/workflows/ @devops-team @security-team
+/.github/dependabot.yml @devops-team @security-team
+
+# Kubernetes manifests
+/k8s/ @devops-team @security-team @sre-team
+/k8s/secrets/ @security-team @devops-team
+/k8s/configmaps/ @devops-team @backend-team @frontend-team
+
+# Helm charts
+/k8s/Chart.yaml @devops-team @sre-team
+/k8s/values*.yaml @devops-team @sre-team @security-team
+
+# Deployment scripts
+/scripts/ @devops-team @sre-team
+/scripts/deploy.sh @devops-team @sre-team @security-team
+/scripts/rollback.sh @devops-team @sre-team @security-team
+/scripts/backup.sh @devops-team @sre-team
+
+# Docker and container files
+Dockerfile @devops-team @security-team
+docker-compose*.yml @devops-team @security-team
+.dockerignore @devops-team
+
+# ================================
+# Monitoring and Observability
+# ================================
+
+# Monitoring configuration
+/monitoring/ @devops-team @sre-team
+/monitoring/prometheus/ @devops-team @sre-team
+/monitoring/grafana/ @devops-team @sre-team
+/monitoring/alertmanager/ @devops-team @sre-team
+
+# Prometheus rules and alerts
+/monitoring/prometheus-rules.yml @devops-team @sre-team @security-team
+
+# ================================
+# Security and Compliance
+# ================================
+
+# Security policies and configurations
+/security/ @security-team
+/.github/SECURITY.md @security-team @team-leads
+
+# Security scanning configurations
+/.github/workflows/security*.yml @security-team @devops-team
+/.github/workflows/*security* @security-team @devops-team
+
+# Dependabot configuration
+/.github/dependabot.yml @security-team @devops-team
+
+# ================================
+# Documentation
+# ================================
+
+# All markdown documentation
+*.md @tech-writers @team-leads
+/docs/ @tech-writers @team-leads
+
+# API documentation
+/docs/api/ @backend-team @tech-writers
+/backend/src/main/java/**/*Controller.java @backend-team @tech-writers
+
+# Architecture and design docs
+/docs/architecture/ @team-leads @tech-writers @security-team
+/docs/security/ @security-team @tech-writers
+
+# Deployment and operations docs
+/docs/deployment/ @devops-team @tech-writers
+/docs/operations/ @devops-team @sre-team @tech-writers
+
+# ================================
+# Configuration Files
+# ================================
+
+# Root configuration files
+/.gitignore @devops-team
+/.gitattributes @devops-team
+/README.md @team-leads @tech-writers
+
+# IDE and editor configurations
+/.vscode/ @team-leads
+/.idea/ @team-leads
+/.editorconfig @team-leads
+
+# ================================
+# Database and Migrations
+# ================================
+
+# Database migration scripts
+/backend/src/main/resources/db/ @backend-team @dba-team @security-team
+/backend/src/main/resources/db/migration/ @backend-team @dba-team
+
+# Database configuration
+/backend/src/main/resources/application*database* @backend-team @dba-team @security-team
+
+# ================================
+# Testing and Quality Assurance
+# ================================
+
+# Test configuration files
+/backend/src/test/resources/ @backend-team @qa-team
+/frontend/src/test/ @frontend-team @qa-team
+
+# E2E tests
+/e2e/ @qa-team @frontend-team @backend-team
+/cypress/ @qa-team @frontend-team
+
+# Performance tests
+/performance/ @qa-team @sre-team
+
+# ================================
+# Special Files Requiring Extra Review
+# ================================
+
+# Files that affect security posture
+**/security.* @security-team
+**/auth.* @security-team
+**/authentication.* @security-team
+**/authorization.* @security-team
+**/*Security* @security-team
+**/*Auth* @security-team
+
+# Files that affect performance
+**/performance.* @sre-team
+**/*Performance* @sre-team
+**/*Cache* @sre-team @backend-team
+
+# Files that affect compliance
+**/compliance.* @security-team @legal-team
+**/*Compliance* @security-team @legal-team
+**/gdpr.* @security-team @legal-team
+**/privacy.* @security-team @legal-team
+
+# ================================
+# Emergency Contacts
+# ================================
+# For urgent security issues: @security-team @team-leads
+# For production incidents: @sre-team @devops-team @team-leads
+# For compliance issues: @security-team @legal-team @team-leads

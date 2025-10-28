@@ -1,0 +1,135 @@
+name: 🔒 Security Vulnerability Report
+description: Report a security vulnerability (for non-critical issues only)
+title: "[SECURITY] "
+labels: ["security", "needs-triage", "confidential"]
+assignees: ["security-team"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **IMPORTANT SECURITY NOTICE** ⚠️
+        
+        **For critical security vulnerabilities, please DO NOT create a public issue.**
+        Instead, please email us directly at: **security@example.com**
+        
+        This template is only for non-critical security improvements or general security discussions.
+
+  - type: checkboxes
+    id: severity-check
+    attributes:
+      label: Severity Confirmation
+      description: Please confirm this is not a critical vulnerability
+      options:
+        - label: This is NOT a critical security vulnerability that could be exploited
+          required: true
+        - label: I understand that critical vulnerabilities should be reported privately to security@example.com
+          required: true
+        - label: This is a security improvement suggestion or non-critical security issue
+          required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Security Category
+      description: What type of security issue is this?
+      options:
+        - Security Enhancement
+        - Security Configuration
+        - Security Documentation
+        - Security Testing
+        - Compliance
+        - Privacy
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which component is affected?
+      options:
+        - Authentication System
+        - Authorization System
+        - API Endpoints
+        - Database
+        - Frontend Application
+        - Infrastructure
+        - CI/CD Pipeline
+        - Monitoring/Logging
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Security Issue Description
+      description: Describe the security concern or improvement suggestion
+      placeholder: Describe the security issue or improvement...
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential Impact
+      description: What could be the impact if this issue is not addressed?
+      placeholder: Describe the potential impact...
+    validations:
+      required: true
+
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Recommended Solution
+      description: What do you recommend to address this security concern?
+      placeholder: Describe your recommended solution...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Level
+      description: How urgent is this security improvement?
+      options:
+        - High (Should be addressed soon)
+        - Medium (Important but not urgent)
+        - Low (Nice to have improvement)
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Any relevant security standards, guidelines, or documentation
+      placeholder: |
+        - OWASP guidelines
+        - Security standards
+        - Documentation links
+        - Similar issues
+
+  - type: checkboxes
+    id: compliance
+    attributes:
+      label: Compliance Considerations
+      description: Does this relate to any compliance requirements?
+      options:
+        - label: GDPR compliance
+        - label: SOC 2 compliance
+        - label: ISO 27001
+        - label: PCI DSS
+        - label: HIPAA
+        - label: Other regulatory requirements
+        - label: Not applicable
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any additional context about this security concern
+      placeholder: Any additional information...

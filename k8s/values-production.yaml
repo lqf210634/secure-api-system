@@ -1,0 +1,667 @@
+# Production environment values for secure-api-system
+# This file overrides the default values.yaml for production environment
+
+# Global configuration
+global:
+  imageRegistry: "ghcr.io"
+  imagePullSecrets:
+    - name: ghcr-secret
+
+# Application configuration
+app:
+  environment: production
+
+# Image configuration
+image:
+  tag: latest
+
+# Frontend configuration
+frontend:
+  replicaCount: 3
+  
+  ingress:
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: secure-api.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: secure-api-prod-tls
+        hosts:
+          - secure-api.example.com
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  nodeSelector:
+    node-type: frontend
+  
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              values:
+              - frontend
+          topologyKey: kubernetes.io/hostname
+  
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: REACT_APP_API_URL
+      value: "https://secure-api.example.com/api"
+    - name: REACT_APP_ENVIRONMENT
+      value: "production"
+    - name: REACT_APP_SENTRY_DSN
+      valueFrom:
+        secretKeyRef:
+          name: monitoring-secret
+          key: sentry-dsn
+
+# Backend configuration
+backend:
+  replicaCount: 5
+  
+  ingress:
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/rate-limit: "1000"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: secure-api.example.com
+        paths:
+          - path: /api
+            pathType: Prefix
+    tls:
+      - secretName: secure-api-prod-tls
+        hosts:
+          - secure-api.example.com
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  nodeSelector:
+    node-type: backend
+  
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              values:
+              - backend
+          topologyKey: kubernetes.io/hostname
+  
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: "production"
+    - name: SPRING_DATASOURCE_URL
+      value: "jdbc:mysql://mysql-primary:3306/secure_api_prod"
+    - name: SPRING_DATASOURCE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: mysql-secret
+          key: username
+    - name: SPRING_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: mysql-secret
+          key: password
+    - name: SPRING_REDIS_HOST
+      value: "redis-primary"
+    - name: SPRING_REDIS_PORT
+      value: "6379"
+    - name: SPRING_REDIS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: redis-secret
+          key: password
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: app-secret
+          key: jwt-secret
+    - name: ENCRYPTION_KEY
+      valueFrom:
+        secretKeyRef:
+          name: app-secret
+          key: encryption-key
+    - name: SENTRY_DSN
+      valueFrom:
+        secretKeyRef:
+          name: monitoring-secret
+          key: sentry-dsn
+    - name: JAVA_OPTS
+      value: "-Xms1g -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+
+# MySQL configuration (High Availability)
+mysql:
+  enabled: true
+  architecture: replication
+  
+  primary:
+    name: mysql-primary
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+    
+    persistence:
+      size: 100Gi
+      storageClass: "fast-ssd"
+    
+    nodeSelector:
+      node-type: database
+  
+  secondary:
+    name: mysql-secondary
+    replicaCount: 2
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    
+    persistence:
+      size: 100Gi
+      storageClass: "fast-ssd"
+    
+    nodeSelector:
+      node-type: database
+  
+  config:
+    database: "secure_api_prod"
+    username: "prod_user"
+    password: "prod_secure_password_2024"
+  
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    retention: "30d"
+    storage:
+      size: 50Gi
+      storageClass: "standard"
+
+# Redis configuration (High Availability)
+redis:
+  enabled: true
+  architecture: replication
+  
+  master:
+    name: redis-primary
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    
+    persistence:
+      size: 20Gi
+      storageClass: "fast-ssd"
+    
+    nodeSelector:
+      node-type: cache
+  
+  replica:
+    name: redis-replica
+    replicaCount: 3
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    
+    persistence:
+      size: 20Gi
+      storageClass: "fast-ssd"
+    
+    nodeSelector:
+      node-type: cache
+  
+  config:
+    password: "prod_redis_secure_password_2024"
+    maxmemory: "1gb"
+    maxmemoryPolicy: "allkeys-lru"
+  
+  sentinel:
+    enabled: true
+    replicaCount: 3
+
+# Monitoring configuration (Production-grade)
+monitoring:
+  enabled: true
+  
+  prometheus:
+    ingress:
+      annotations:
+        nginx.ingress.kubernetes.io/auth-type: basic
+        nginx.ingress.kubernetes.io/auth-secret: prometheus-auth
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      hosts:
+        - host: prometheus.secure-api.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: prometheus-prod-tls
+          hosts:
+            - prometheus.secure-api.example.com
+    
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+    
+    persistence:
+      size: 100Gi
+      storageClass: "fast-ssd"
+    
+    retention: "30d"
+    
+    nodeSelector:
+      node-type: monitoring
+  
+  grafana:
+    ingress:
+      annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      hosts:
+        - host: grafana.secure-api.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: grafana-prod-tls
+          hosts:
+            - grafana.secure-api.example.com
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+    
+    persistence:
+      size: 20Gi
+      storageClass: "standard"
+    
+    config:
+      adminUser: admin
+      adminPassword: "prod_grafana_secure_password_2024"
+    
+    nodeSelector:
+      node-type: monitoring
+  
+  alertmanager:
+    enabled: true
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    
+    config:
+      slack:
+        webhook_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+        channel: "#alerts"
+      
+      email:
+        smtp_server: "smtp.example.com:587"
+        from: "alerts@example.com"
+        to: "ops@example.com"
+
+# Secrets configuration (Production-grade)
+secrets:
+  mysql:
+    username: "cHJvZF91c2Vy"  # base64: prod_user
+    password: "cHJvZF9zZWN1cmVfcGFzc3dvcmRfMjAyNA=="  # base64: prod_secure_password_2024
+  
+  redis:
+    password: "cHJvZF9yZWRpc19zZWN1cmVfcGFzc3dvcmRfMjAyNA=="  # base64: prod_redis_secure_password_2024
+  
+  app:
+    jwtSecret: "cHJvZF9qd3Rfc3VwZXJfc2VjdXJlX2tleV8yMDI0X3dpdGhfbG9uZ19zdHJpbmc="  # base64: prod_jwt_super_secure_key_2024_with_long_string
+    encryptionKey: "cHJvZF9lbmNyeXB0aW9uX3N1cGVyX3NlY3VyZV9rZXlfMjAyNA=="  # base64: prod_encryption_super_secure_key_2024
+  
+  monitoring:
+    sentryDsn: "aHR0cHM6Ly95b3VyLXNlbnRyeS1kc24taGVyZQ=="  # base64: https://your-sentry-dsn-here
+
+# ConfigMaps configuration (Production optimized)
+configMaps:
+  app:
+    data:
+      application.properties: |
+        # Production environment configuration
+        spring.application.name=secure-api-system
+        server.port=8080
+        
+        # Database configuration
+        spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+        spring.jpa.hibernate.ddl-auto=validate
+        spring.jpa.show-sql=false
+        spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+        spring.jpa.properties.hibernate.jdbc.batch_size=20
+        spring.jpa.properties.hibernate.order_inserts=true
+        spring.jpa.properties.hibernate.order_updates=true
+        spring.jpa.properties.hibernate.jdbc.batch_versioned_data=true
+        
+        # Connection pool configuration
+        spring.datasource.hikari.maximum-pool-size=20
+        spring.datasource.hikari.minimum-idle=5
+        spring.datasource.hikari.idle-timeout=300000
+        spring.datasource.hikari.max-lifetime=1200000
+        spring.datasource.hikari.connection-timeout=20000
+        
+        # Redis configuration
+        spring.redis.timeout=2000ms
+        spring.redis.lettuce.pool.max-active=20
+        spring.redis.lettuce.pool.max-idle=10
+        spring.redis.lettuce.pool.min-idle=5
+        spring.redis.lettuce.pool.max-wait=-1ms
+        
+        # Security configuration
+        jwt.expiration=86400
+        encryption.algorithm=AES
+        
+        # Actuator configuration
+        management.endpoints.web.exposure.include=health,info,metrics,prometheus
+        management.endpoint.health.show-details=when-authorized
+        management.metrics.export.prometheus.enabled=true
+        management.server.port=8081
+        
+        # Logging configuration
+        logging.level.root=WARN
+        logging.level.com.secureapi=INFO
+        logging.level.org.springframework.security=WARN
+        
+        # Performance configuration
+        server.tomcat.max-threads=200
+        server.tomcat.min-spare-threads=10
+        server.tomcat.max-connections=8192
+        server.tomcat.accept-count=100
+        server.tomcat.connection-timeout=20000
+        
+        # CORS configuration (restrictive for production)
+        cors.allowed-origins=https://secure-api.example.com
+        cors.allowed-methods=GET,POST,PUT,DELETE
+        cors.allowed-headers=Authorization,Content-Type,X-Requested-With
+        cors.allow-credentials=true
+        cors.max-age=3600
+
+# Security configuration (Production-grade)
+security:
+  networkPolicies:
+    enabled: true
+    
+    # Strict ingress policies
+    ingress:
+      enabled: true
+      rules:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                name: ingress-nginx
+          ports:
+          - protocol: TCP
+            port: 8080
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                name: monitoring
+          ports:
+          - protocol: TCP
+            port: 8081
+    
+    # Strict egress policies
+    egress:
+      enabled: true
+      rules:
+        - to:
+          - podSelector:
+              matchLabels:
+                app: mysql
+          ports:
+          - protocol: TCP
+            port: 3306
+        - to:
+          - podSelector:
+              matchLabels:
+                app: redis
+          ports:
+          - protocol: TCP
+            port: 6379
+        - to: []
+          ports:
+          - protocol: TCP
+            port: 53
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 443
+  
+  podSecurityPolicy:
+    enabled: true
+    
+    # Strict security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+  
+  rbac:
+    enabled: true
+    
+    # Minimal permissions
+    rules:
+    - apiGroups: [""]
+      resources: ["configmaps", "secrets"]
+      verbs: ["get", "list"]
+
+# Certificate configuration (Let's Encrypt Production)
+certificates:
+  enabled: true
+  issuer: letsencrypt-prod
+  dnsNames:
+    - secure-api.example.com
+    - prometheus.secure-api.example.com
+    - grafana.secure-api.example.com
+
+# Backup configuration (Production schedule)
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: "90d"
+  
+  mysql:
+    enabled: true
+    storage:
+      size: 50Gi
+      storageClass: "standard"
+    
+    # S3 backup configuration
+    s3:
+      enabled: true
+      bucket: "secure-api-backups"
+      region: "us-west-2"
+      encryption: true
+  
+  redis:
+    enabled: true
+    storage:
+      size: 20Gi
+      storageClass: "standard"
+    
+    s3:
+      enabled: true
+      bucket: "secure-api-backups"
+      region: "us-west-2"
+      encryption: true
+
+# Logging configuration (Production ELK stack)
+logging:
+  enabled: true
+  level: INFO
+  
+  fluentd:
+    enabled: true
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  elasticsearch:
+    enabled: true
+    replicaCount: 3
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+    
+    persistence:
+      size: 100Gi
+      storageClass: "fast-ssd"
+  
+  kibana:
+    enabled: true
+    ingress:
+      enabled: true
+      hosts:
+        - host: kibana.secure-api.example.com
+
+# Resource quotas for production namespace
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "20"
+    requests.memory: "40Gi"
+    limits.cpu: "40"
+    limits.memory: "80Gi"
+    persistentvolumeclaims: "50"
+    services: "20"
+    secrets: "20"
+    configmaps: "20"
+
+# Pod disruption budgets
+podDisruptionBudget:
+  enabled: true
+  
+  frontend:
+    minAvailable: 2
+  
+  backend:
+    minAvailable: 3
+  
+  mysql:
+    minAvailable: 1
+  
+  redis:
+    minAvailable: 2
+
+# Horizontal Pod Autoscaler v2
+hpa:
+  enabled: true
+  
+  frontend:
+    minReplicas: 3
+    maxReplicas: 20
+    metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  
+  backend:
+    minReplicas: 5
+    maxReplicas: 50
+    metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

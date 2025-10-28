@@ -1,0 +1,105 @@
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@example.com'
+  smtp_auth_username: 'alerts@example.com'
+  smtp_auth_password: 'your-email-password'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+  routes:
+  - match:
+      severity: critical
+    receiver: 'critical-alerts'
+  - match:
+      severity: warning
+    receiver: 'warning-alerts'
+  - match:
+      alertname: 'InstanceDown'
+    receiver: 'instance-down'
+
+receivers:
+- name: 'web.hook'
+  webhook_configs:
+  - url: 'http://127.0.0.1:5001/'
+
+- name: 'critical-alerts'
+  email_configs:
+  - to: 'admin@example.com'
+    subject: '[CRITICAL] {{ .GroupLabels.alertname }}'
+    body: |
+      {{ range .Alerts }}
+      Alert: {{ .Annotations.summary }}
+      Description: {{ .Annotations.description }}
+      Instance: {{ .Labels.instance }}
+      Severity: {{ .Labels.severity }}
+      {{ end }}
+  slack_configs:
+  - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+    channel: '#alerts-critical'
+    title: 'Critical Alert'
+    text: |
+      {{ range .Alerts }}
+      *Alert:* {{ .Annotations.summary }}
+      *Description:* {{ .Annotations.description }}
+      *Instance:* {{ .Labels.instance }}
+      *Severity:* {{ .Labels.severity }}
+      {{ end }}
+
+- name: 'warning-alerts'
+  email_configs:
+  - to: 'team@example.com'
+    subject: '[WARNING] {{ .GroupLabels.alertname }}'
+    body: |
+      {{ range .Alerts }}
+      Alert: {{ .Annotations.summary }}
+      Description: {{ .Annotations.description }}
+      Instance: {{ .Labels.instance }}
+      Severity: {{ .Labels.severity }}
+      {{ end }}
+  slack_configs:
+  - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+    channel: '#alerts-warning'
+    title: 'Warning Alert'
+    text: |
+      {{ range .Alerts }}
+      *Alert:* {{ .Annotations.summary }}
+      *Description:* {{ .Annotations.description }}
+      *Instance:* {{ .Labels.instance }}
+      *Severity:* {{ .Labels.severity }}
+      {{ end }}
+
+- name: 'instance-down'
+  email_configs:
+  - to: 'ops@example.com'
+    subject: '[URGENT] Service Instance Down'
+    body: |
+      {{ range .Alerts }}
+      Service {{ .Labels.instance }} is down!
+      
+      Alert: {{ .Annotations.summary }}
+      Description: {{ .Annotations.description }}
+      Time: {{ .StartsAt }}
+      {{ end }}
+  slack_configs:
+  - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+    channel: '#ops-urgent'
+    title: 'Service Instance Down'
+    text: |
+      {{ range .Alerts }}
+      🚨 *URGENT:* Service {{ .Labels.instance }} is down!
+      
+      *Alert:* {{ .Annotations.summary }}
+      *Description:* {{ .Annotations.description }}
+      *Time:* {{ .StartsAt }}
+      {{ end }}
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev', 'instance']

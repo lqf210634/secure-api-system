@@ -1,0 +1,85 @@
+{{- if and .Values.podDisruptionBudget.enabled .Values.frontend.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-frontend
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.frontend.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.podDisruptionBudget.frontend.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.frontend.minAvailable }}
+  {{- end }}
+  {{- if .Values.podDisruptionBudget.frontend.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.frontend.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "secure-api-system.frontend.selectorLabels" . | nindent 6 }}
+{{- end }}
+
+{{- if and .Values.podDisruptionBudget.enabled .Values.backend.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-backend
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.backend.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.podDisruptionBudget.backend.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.backend.minAvailable }}
+  {{- end }}
+  {{- if .Values.podDisruptionBudget.backend.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.backend.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "secure-api-system.backend.selectorLabels" . | nindent 6 }}
+{{- end }}
+
+{{- if and .Values.podDisruptionBudget.enabled .Values.mysql.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-mysql
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  {{- if .Values.podDisruptionBudget.mysql.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.mysql.minAvailable }}
+  {{- end }}
+  {{- if .Values.podDisruptionBudget.mysql.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.mysql.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mysql
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{- if and .Values.podDisruptionBudget.enabled .Values.redis.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-redis
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  {{- if .Values.podDisruptionBudget.redis.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.redis.minAvailable }}
+  {{- end }}
+  {{- if .Values.podDisruptionBudget.redis.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.redis.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: {{ .Release.Name }}

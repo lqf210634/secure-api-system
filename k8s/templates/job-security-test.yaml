@@ -1,0 +1,270 @@
+{{- if .Values.testing.security.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-security-test
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security-test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-weight": "2"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.testing.security.backoffLimit | default 3 }}
+  activeDeadlineSeconds: {{ .Values.testing.security.timeout | default 1800 }}
+  template:
+    metadata:
+      labels:
+        {{- include "secure-api-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: security-test
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "secure-api-system.serviceAccountName" . }}
+      {{- with .Values.testing.security.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.testing.security.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.testing.security.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: zap-security-test
+        image: {{ .Values.testing.security.image.repository }}:{{ .Values.testing.security.image.tag | default "stable" }}
+        imagePullPolicy: {{ .Values.testing.security.image.pullPolicy | default "IfNotPresent" }}
+        command:
+        - zap-baseline.py
+        args:
+        - -t
+        - "http://{{ include "secure-api-system.fullname" . }}-frontend:{{ .Values.frontend.service.port }}"
+        - -J
+        - /tmp/zap-report.json
+        - -r
+        - /tmp/zap-report.html
+        {{- if .Values.testing.security.passive }}
+        - -P
+        {{- end }}
+        {{- if .Values.testing.security.configFile }}
+        - -c
+        - /config/{{ .Values.testing.security.configFile }}
+        {{- end }}
+        env:
+        - name: ZAP_PROXY_PORT
+          value: "8080"
+        - name: TARGET_URL
+          value: "http://{{ include "secure-api-system.fullname" . }}-frontend:{{ .Values.frontend.service.port }}"
+        - name: API_URL
+          value: "http://{{ include "secure-api-system.fullname" . }}-backend:{{ .Values.backend.service.port }}"
+        {{- with .Values.testing.security.env }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.testing.security.resources | nindent 10 }}
+        volumeMounts:
+        - name: test-results
+          mountPath: /tmp
+        {{- if .Values.testing.security.configFile }}
+        - name: zap-config
+          mountPath: /config
+          readOnly: true
+        {{- end }}
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      
+      # OWASP Dependency Check
+      - name: dependency-check
+        image: {{ .Values.testing.security.dependencyCheck.image.repository }}:{{ .Values.testing.security.dependencyCheck.image.tag | default "latest" }}
+        imagePullPolicy: {{ .Values.testing.security.dependencyCheck.image.pullPolicy | default "IfNotPresent" }}
+        command:
+        - /usr/share/dependency-check/bin/dependency-check.sh
+        args:
+        - --scan
+        - /app
+        - --format
+        - JSON
+        - --out
+        - /tmp/dependency-check-report.json
+        - --enableRetired
+        {{- if .Values.testing.security.dependencyCheck.nvdApiKey }}
+        - --nvdApiKey
+        - $(NVD_API_KEY)
+        {{- end }}
+        env:
+        {{- if .Values.testing.security.dependencyCheck.nvdApiKey }}
+        - name: NVD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "secure-api-system.fullname" . }}-security-test
+              key: nvd-api-key
+        {{- end }}
+        resources:
+          {{- toYaml .Values.testing.security.dependencyCheck.resources | nindent 10 }}
+        volumeMounts:
+        - name: test-results
+          mountPath: /tmp
+        - name: app-source
+          mountPath: /app
+          readOnly: true
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: test-results
+        emptyDir: {}
+      - name: app-source
+        emptyDir: {}
+      {{- if .Values.testing.security.configFile }}
+      - name: zap-config
+        configMap:
+          name: {{ include "secure-api-system.fullname" . }}-security-test-config
+      {{- end }}
+
+---
+{{- if .Values.testing.security.configFile }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-security-test-config
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security-test
+data:
+  zap-config.conf: |
+    # ZAP Security Test Configuration
+    
+    # Rules to ignore (false positives)
+    rules.ignore.10021=true  # X-Content-Type-Options header missing
+    rules.ignore.10020=true  # X-Frame-Options header missing
+    
+    # Custom rules
+    rules.cookie.secure=true
+    rules.cookie.httponly=true
+    rules.cookie.samesite=true
+    
+    # Authentication configuration
+    {{- if .Values.testing.security.auth.enabled }}
+    auth.method={{ .Values.testing.security.auth.method | default "form" }}
+    auth.loginurl={{ .Values.testing.security.auth.loginUrl | default "/login" }}
+    auth.username={{ .Values.testing.security.auth.username | default "testuser" }}
+    {{- end }}
+    
+    # Scan policy
+    scanner.strength={{ .Values.testing.security.scanStrength | default "medium" }}
+    scanner.threshold={{ .Values.testing.security.scanThreshold | default "medium" }}
+{{- end }}
+
+---
+{{- if or .Values.testing.security.dependencyCheck.nvdApiKey .Values.testing.security.auth.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-security-test
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security-test
+type: Opaque
+data:
+  {{- if .Values.testing.security.dependencyCheck.nvdApiKey }}
+  nvd-api-key: {{ .Values.testing.security.dependencyCheck.nvdApiKey | b64enc }}
+  {{- end }}
+  {{- if .Values.testing.security.auth.enabled }}
+  auth-password: {{ .Values.testing.security.auth.password | b64enc }}
+  {{- end }}
+{{- end }}
+
+---
+# Security Test CronJob for regular scanning
+{{- if .Values.testing.security.schedule.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-security-scan
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security-scan
+spec:
+  schedule: "{{ .Values.testing.security.schedule.cron | default "0 2 * * 0" }}"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.testing.security.schedule.successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ .Values.testing.security.schedule.failedJobsHistoryLimit | default 1 }}
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            {{- include "secure-api-system.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: security-scan
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "secure-api-system.serviceAccountName" . }}
+          containers:
+          - name: security-scanner
+            image: {{ .Values.testing.security.image.repository }}:{{ .Values.testing.security.image.tag | default "stable" }}
+            imagePullPolicy: {{ .Values.testing.security.image.pullPolicy | default "IfNotPresent" }}
+            command:
+            - zap-full-scan.py
+            args:
+            - -t
+            - "http://{{ include "secure-api-system.fullname" . }}-frontend:{{ .Values.frontend.service.port }}"
+            - -J
+            - /tmp/security-scan-report.json
+            - -r
+            - /tmp/security-scan-report.html
+            env:
+            - name: TARGET_URL
+              value: "http://{{ include "secure-api-system.fullname" . }}-frontend:{{ .Values.frontend.service.port }}"
+            resources:
+              {{- toYaml .Values.testing.security.resources | nindent 14 }}
+            volumeMounts:
+            - name: scan-results
+              mountPath: /tmp
+          volumes:
+          - name: scan-results
+            persistentVolumeClaim:
+              claimName: {{ include "secure-api-system.fullname" . }}-security-scan-pvc
+{{- end }}
+
+---
+{{- if .Values.testing.security.schedule.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-security-scan-pvc
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security-scan
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.testing.security.schedule.storage | default "1Gi" }}
+  {{- if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+{{- end }}
+{{- end }}

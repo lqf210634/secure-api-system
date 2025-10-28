@@ -1,0 +1,138 @@
+apiVersion: v2
+name: secure-api-system
+description: A comprehensive secure API system with frontend, backend, database, monitoring, logging, and backup capabilities
+
+# Chart version
+version: 1.0.0
+
+# Application version
+appVersion: "1.0.0"
+
+# Chart type
+type: application
+
+# Minimum Kubernetes version
+kubeVersion: ">=1.20.0-0"
+
+# Keywords for searching
+keywords:
+  - api
+  - security
+  - microservices
+  - monitoring
+  - logging
+  - backup
+  - mysql
+  - redis
+  - spring-boot
+  - react
+  - prometheus
+  - grafana
+  - elasticsearch
+  - kibana
+  - helm
+
+# Maintainers
+maintainers:
+  - name: Development Team
+    email: dev@secure-api-system.com
+    url: https://github.com/secure-api-system
+
+# Home page
+home: https://github.com/secure-api-system/secure-api-system
+
+# Source code
+sources:
+  - https://github.com/secure-api-system/secure-api-system
+
+# Icon
+icon: https://raw.githubusercontent.com/secure-api-system/secure-api-system/main/docs/images/logo.png
+
+# Annotations
+annotations:
+  category: Application
+  licenses: MIT
+  images: |
+    - name: frontend
+      image: secure-api-system/frontend:latest
+    - name: backend
+      image: secure-api-system/backend:latest
+    - name: mysql
+      image: mysql:8.0
+    - name: redis
+      image: redis:7-alpine
+    - name: fluent-bit
+      image: fluent/fluent-bit:2.2
+    - name: k6
+      image: grafana/k6:latest
+    - name: owasp-zap
+      image: owasp/zap2docker-stable:stable
+
+# Dependencies
+dependencies:
+  # Database dependencies
+  - name: mysql
+    version: "9.4.6"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: mysql.enabled
+    tags:
+      - database
+  
+  - name: redis
+    version: "17.3.7"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+    tags:
+      - cache
+      - database
+  
+  # Monitoring dependencies
+  - name: kube-prometheus-stack
+    version: "45.7.1"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: monitoring.prometheus.enabled
+    tags:
+      - monitoring
+  
+  - name: grafana
+    version: "6.50.7"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: monitoring.grafana.enabled
+    tags:
+      - monitoring
+      - visualization
+  
+  # Logging dependencies
+  - name: elasticsearch
+    version: "7.17.3"
+    repository: "https://helm.elastic.co"
+    condition: logging.elasticsearch.enabled
+    tags:
+      - logging
+      - search
+  
+  - name: kibana
+    version: "7.17.3"
+    repository: "https://helm.elastic.co"
+    condition: logging.kibana.enabled
+    tags:
+      - logging
+      - visualization
+  
+  # Ingress dependencies
+  - name: ingress-nginx
+    version: "4.4.2"
+    repository: "https://kubernetes.github.io/ingress-nginx"
+    condition: ingress.nginx.enabled
+    tags:
+      - ingress
+      - networking
+  
+  # Certificate management
+  - name: cert-manager
+    version: "v1.11.0"
+    repository: "https://charts.jetstack.io"
+    condition: tls.certManager.enabled
+    tags:
+      - security
+      - tls

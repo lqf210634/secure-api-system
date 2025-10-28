@@ -1,0 +1,105 @@
+1. Get the application URL by running these commands:
+{{- if .Values.frontend.ingress.enabled }}
+{{- range $host := .Values.frontend.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.frontend.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else if contains "NodePort" .Values.frontend.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ include "secure-api-system.namespace" . }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "secure-api-system.fullname" . }}-frontend)
+  export NODE_IP=$(kubectl get nodes --namespace {{ include "secure-api-system.namespace" . }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.frontend.service.type }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch the status of by running 'kubectl get --namespace {{ include "secure-api-system.namespace" . }} svc -w {{ include "secure-api-system.fullname" . }}-frontend'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ include "secure-api-system.namespace" . }} {{ include "secure-api-system.fullname" . }}-frontend --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.frontend.service.port }}
+{{- else if contains "ClusterIP" .Values.frontend.service.type }}
+  export POD_NAME=$(kubectl get pods --namespace {{ include "secure-api-system.namespace" . }} -l "app.kubernetes.io/name={{ include "secure-api-system.name" . }},app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=frontend" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ include "secure-api-system.namespace" . }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace {{ include "secure-api-system.namespace" . }} port-forward $POD_NAME 8080:$CONTAINER_PORT
+{{- end }}
+
+2. Backend API is available at:
+{{- if .Values.backend.ingress.enabled }}
+{{- range $host := .Values.backend.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.backend.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else }}
+  export POD_NAME=$(kubectl get pods --namespace {{ include "secure-api-system.namespace" . }} -l "app.kubernetes.io/name={{ include "secure-api-system.name" . }},app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=backend" -o jsonpath="{.items[0].metadata.name}")
+  echo "Visit http://127.0.0.1:8080 to access the API"
+  kubectl --namespace {{ include "secure-api-system.namespace" . }} port-forward $POD_NAME 8080:8080
+{{- end }}
+
+3. Health check endpoints:
+   - Frontend: http://{{ (index .Values.frontend.ingress.hosts 0).host }}/
+   - Backend Health: http://{{ (index .Values.backend.ingress.hosts 0).host }}/actuator/health
+   - Backend Metrics: http://{{ (index .Values.backend.ingress.hosts 0).host }}/actuator/metrics
+
+{{- if .Values.monitoring.enabled }}
+
+4. Monitoring is enabled. Access Grafana dashboard:
+   export POD_NAME=$(kubectl get pods --namespace {{ include "secure-api-system.namespace" . }} -l "app.kubernetes.io/name=grafana" -o jsonpath="{.items[0].metadata.name}")
+   echo "Visit http://127.0.0.1:3000 to access Grafana"
+   kubectl --namespace {{ include "secure-api-system.namespace" . }} port-forward $POD_NAME 3000:3000
+
+   Default Grafana credentials:
+   - Username: admin
+   - Password: Run 'kubectl get secret --namespace {{ include "secure-api-system.namespace" . }} grafana -o jsonpath="{.data.admin-password}" | base64 --decode'
+
+{{- end }}
+
+{{- if .Values.logging.enabled }}
+
+5. Logging is enabled. Access Kibana dashboard:
+   export POD_NAME=$(kubectl get pods --namespace {{ include "secure-api-system.namespace" . }} -l "app.kubernetes.io/name=kibana" -o jsonpath="{.items[0].metadata.name}")
+   echo "Visit http://127.0.0.1:5601 to access Kibana"
+   kubectl --namespace {{ include "secure-api-system.namespace" . }} port-forward $POD_NAME 5601:5601
+
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+
+6. Backup is configured with the following schedule:
+   - Database backup: {{ .Values.backup.database.schedule }}
+   {{- if .Values.backup.redis.enabled }}
+   - Redis backup: {{ .Values.backup.redis.schedule }}
+   {{- end }}
+   
+   To manually trigger a backup:
+   kubectl create job --namespace {{ include "secure-api-system.namespace" . }} --from=cronjob/{{ include "secure-api-system.fullname" . }}-database-backup manual-backup-$(date +%s)
+
+{{- end }}
+
+{{- if .Values.testing.performance.enabled }}
+
+7. Performance testing is enabled. To run a performance test:
+   kubectl create job --namespace {{ include "secure-api-system.namespace" . }} --from=cronjob/{{ include "secure-api-system.fullname" . }}-performance-test perf-test-$(date +%s)
+
+{{- end }}
+
+{{- if .Values.testing.security.enabled }}
+
+8. Security testing is enabled. To run a security scan:
+   kubectl create job --namespace {{ include "secure-api-system.namespace" . }} --from=cronjob/{{ include "secure-api-system.fullname" . }}-security-test sec-test-$(date +%s)
+
+{{- end }}
+
+9. Useful commands:
+   - Check pod status: kubectl get pods --namespace {{ include "secure-api-system.namespace" . }}
+   - View logs: kubectl logs -f deployment/{{ include "secure-api-system.fullname" . }}-backend --namespace {{ include "secure-api-system.namespace" . }}
+   - Scale backend: kubectl scale deployment {{ include "secure-api-system.fullname" . }}-backend --replicas=5 --namespace {{ include "secure-api-system.namespace" . }}
+   - Check ingress: kubectl get ingress --namespace {{ include "secure-api-system.namespace" . }}
+
+{{- if .Values.security.networkPolicy.enabled }}
+
+10. Network policies are enabled for enhanced security. This may restrict network access between pods.
+    If you experience connectivity issues, check the network policies:
+    kubectl get networkpolicy --namespace {{ include "secure-api-system.namespace" . }}
+
+{{- end }}
+
+For more information, visit: https://github.com/secure-api-system/secure-api-system

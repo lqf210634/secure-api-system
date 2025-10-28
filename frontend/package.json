@@ -1,0 +1,102 @@
+{
+  "name": "secure-api-frontend",
+  "version": "1.0.0",
+  "description": "Secure API System Frontend - React Application with Vite",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,scss,json}\"",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:unit": "vitest run src/**/*.test.{ts,tsx}",
+    "test:integration": "vitest run src/test/integration/**/*.test.{ts,tsx}",
+    "test:e2e": "vitest run src/test/e2e/**/*.test.{ts,tsx}",
+    "test:performance": "vitest run src/test/performance/**/*.test.{ts,tsx}",
+    "test:watch": "vitest --watch",
+    "test:ci": "vitest run --coverage --reporter=junit --outputFile=test-results/junit.xml",
+    "analyze": "npm run build && npx vite-bundle-analyzer dist"
+  },
+  "dependencies": {
+    "@ant-design/colors": "^7.0.2",
+    "@ant-design/icons": "^5.2.6",
+    "@reduxjs/toolkit": "^2.0.1",
+    "antd": "^5.12.8",
+    "axios": "^1.6.2",
+    "crypto-js": "^4.2.0",
+    "dayjs": "^1.11.10",
+    "js-cookie": "^3.0.5",
+    "lodash": "^4.17.21",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-redux": "^9.0.4",
+    "react-router-dom": "^6.20.1",
+    "redux-persist": "^6.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/crypto-js": "^4.2.1",
+    "@types/js-cookie": "^3.0.6",
+    "@types/lodash": "^4.14.202",
+    "@types/node": "^20.10.4",
+    "@types/react": "^18.2.42",
+    "@types/react-dom": "^18.2.17",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/coverage-v8": "^1.0.4",
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "husky": "^8.0.3",
+    "jsdom": "^23.2.0",
+    "less": "^4.2.0",
+    "lint-staged": "^15.2.0",
+    "msw": "^2.0.11",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "vite-bundle-analyzer": "^0.7.0",
+    "vitest": "^1.0.4"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "src/**/*.{css,scss,json}": [
+      "prettier --write"
+    ]
+  }
+}

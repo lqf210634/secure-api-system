@@ -1,0 +1,359 @@
+/* CSS 变量定义 */
+:root {
+  /* 主色调 */
+  --primary-color: #1890ff;
+  --primary-color-hover: #40a9ff;
+  --primary-color-active: #096dd9;
+  --primary-color-light: #e6f7ff;
+  --primary-color-dark: #0050b3;
+
+  /* 成功色 */
+  --success-color: #52c41a;
+  --success-color-hover: #73d13d;
+  --success-color-active: #389e0d;
+  --success-color-light: #f6ffed;
+
+  /* 警告色 */
+  --warning-color: #faad14;
+  --warning-color-hover: #ffc53d;
+  --warning-color-active: #d48806;
+  --warning-color-light: #fffbe6;
+
+  /* 错误色 */
+  --error-color: #ff4d4f;
+  --error-color-hover: #ff7875;
+  --error-color-active: #d9363e;
+  --error-color-light: #fff2f0;
+
+  /* 信息色 */
+  --info-color: #1890ff;
+  --info-color-hover: #40a9ff;
+  --info-color-active: #096dd9;
+  --info-color-light: #e6f7ff;
+
+  /* 中性色 */
+  --text-color: #262626;
+  --text-color-secondary: #595959;
+  --text-color-tertiary: #8c8c8c;
+  --text-color-quaternary: #bfbfbf;
+  --text-color-disabled: #d9d9d9;
+
+  /* 背景色 */
+  --background-color: #ffffff;
+  --background-color-light: #fafafa;
+  --background-color-base: #f5f5f5;
+  --background-color-dark: #141414;
+
+  /* 边框色 */
+  --border-color: #d9d9d9;
+  --border-color-light: #f0f0f0;
+  --border-color-dark: #434343;
+
+  /* 阴影 */
+  --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-3: 0 6px 16px rgba(0, 0, 0, 0.12);
+  --shadow-4: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --shadow-5: 0 12px 32px rgba(0, 0, 0, 0.16);
+
+  /* 圆角 */
+  --border-radius-sm: 4px;
+  --border-radius-base: 6px;
+  --border-radius-lg: 8px;
+  --border-radius-xl: 12px;
+
+  /* 字体大小 */
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-xxl: 20px;
+  --font-size-xxxl: 24px;
+
+  /* 字体粗细 */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* 行高 */
+  --line-height-sm: 1.2;
+  --line-height-base: 1.5715;
+  --line-height-lg: 1.8;
+
+  /* 间距 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-base: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-xxl: 48px;
+  --spacing-xxxl: 64px;
+
+  /* 布局尺寸 */
+  --header-height: 64px;
+  --sidebar-width: 256px;
+  --sidebar-collapsed-width: 80px;
+  --footer-height: 48px;
+
+  /* 断点 */
+  --breakpoint-xs: 480px;
+  --breakpoint-sm: 576px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 992px;
+  --breakpoint-xl: 1200px;
+  --breakpoint-xxl: 1600px;
+
+  /* 过渡动画 */
+  --transition-fast: 0.1s;
+  --transition-base: 0.3s;
+  --transition-slow: 0.5s;
+
+  /* 缓动函数 */
+  --ease-out: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-in: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --ease-out-back: cubic-bezier(0.12, 0.4, 0.29, 1.46);
+  --ease-in-back: cubic-bezier(0.71, -0.46, 0.88, 0.6);
+  --ease-in-out-back: cubic-bezier(0.71, -0.46, 0.29, 1.46);
+
+  /* Z-index 层级 */
+  --z-index-dropdown: 1050;
+  --z-index-sticky: 1020;
+  --z-index-fixed: 1030;
+  --z-index-modal-backdrop: 1040;
+  --z-index-modal: 1050;
+  --z-index-popover: 1060;
+  --z-index-tooltip: 1070;
+  --z-index-notification: 1080;
+
+  /* 表格相关 */
+  --table-header-bg: #fafafa;
+  --table-row-hover-bg: #f5f5f5;
+  --table-border-color: #f0f0f0;
+
+  /* 表单相关 */
+  --form-item-margin-bottom: 24px;
+  --form-label-height: 32px;
+  --input-height-base: 32px;
+  --input-height-lg: 40px;
+  --input-height-sm: 24px;
+
+  /* 按钮相关 */
+  --btn-height-base: 32px;
+  --btn-height-lg: 40px;
+  --btn-height-sm: 24px;
+  --btn-padding-horizontal-base: 15px;
+  --btn-padding-horizontal-lg: 15px;
+  --btn-padding-horizontal-sm: 7px;
+
+  /* 卡片相关 */
+  --card-padding-base: 24px;
+  --card-padding-sm: 16px;
+  --card-head-height: 48px;
+  --card-head-padding: 16px;
+
+  /* 模态框相关 */
+  --modal-header-padding: 20px 24px;
+  --modal-body-padding: 24px;
+  --modal-footer-padding: 16px 24px;
+  --modal-border-radius: 8px;
+
+  /* 抽屉相关 */
+  --drawer-header-padding: 16px 24px;
+  --drawer-body-padding: 24px;
+  --drawer-footer-padding: 16px 24px;
+
+  /* 通知相关 */
+  --notification-width: 384px;
+  --notification-margin-bottom: 16px;
+  --notification-padding: 16px 24px;
+
+  /* 消息相关 */
+  --message-top: 8px;
+  --message-max-width: 500px;
+
+  /* 进度条相关 */
+  --progress-default-color: #f5f5f5;
+  --progress-remaining-color: #f5f5f5;
+
+  /* 标签相关 */
+  --tag-default-bg: #fafafa;
+  --tag-default-color: #595959;
+
+  /* 徽章相关 */
+  --badge-height: 20px;
+  --badge-dot-size: 6px;
+  --badge-font-size: 12px;
+
+  /* 头像相关 */
+  --avatar-size-base: 32px;
+  --avatar-size-lg: 40px;
+  --avatar-size-sm: 24px;
+  --avatar-font-size-base: 18px;
+  --avatar-font-size-lg: 24px;
+  --avatar-font-size-sm: 14px;
+
+  /* 分页相关 */
+  --pagination-item-size: 32px;
+  --pagination-item-size-sm: 24px;
+  --pagination-font-size: 14px;
+  --pagination-font-size-sm: 12px;
+
+  /* 面包屑相关 */
+  --breadcrumb-base-color: #8c8c8c;
+  --breadcrumb-last-item-color: #262626;
+  --breadcrumb-font-size: 14px;
+  --breadcrumb-icon-font-size: 12px;
+  --breadcrumb-link-color: #8c8c8c;
+  --breadcrumb-link-color-hover: #1890ff;
+  --breadcrumb-separator-color: #8c8c8c;
+  --breadcrumb-separator-margin: 0 8px;
+
+  /* 步骤条相关 */
+  --steps-nav-arrow-color: #8c8c8c;
+  --steps-background: #f5f5f5;
+  --steps-icon-size: 32px;
+  --steps-icon-custom-size: 32px;
+  --steps-icon-custom-top: 0px;
+  --steps-icon-custom-font-size: 24px;
+  --steps-icon-top: -0.5px;
+  --steps-icon-font-size: 16px;
+  --steps-title-font-size: 16px;
+  --steps-small-icon-size: 24px;
+  --steps-small-icon-font-size: 12px;
+  --steps-dot-size: 8px;
+  --steps-dot-top: 2px;
+  --steps-current-dot-size: 10px;
+
+  /* 时间轴相关 */
+  --timeline-width: 2px;
+  --timeline-color: #f0f0f0;
+  --timeline-dot-border-width: 2px;
+  --timeline-dot-color: #1890ff;
+  --timeline-dot-bg: #ffffff;
+  --timeline-item-padding-bottom: 20px;
+
+  /* 锚点相关 */
+  --anchor-border-width: 2px;
+  --anchor-border-color: #f0f0f0;
+  --anchor-link-top: 7px;
+  --anchor-link-left: 16px;
+  --anchor-link-padding: 7px 0 7px 16px;
+
+  /* 回到顶部相关 */
+  --back-top-color: #ffffff;
+  --back-top-bg: #8c8c8c;
+  --back-top-hover-bg: #595959;
+
+  /* 分割线相关 */
+  --divider-text-padding: 1em 0;
+  --divider-orientation-margin: 5%;
+  --divider-color: rgba(0, 0, 0, 0.06);
+
+  /* 空状态相关 */
+  --empty-font-size: 14px;
+  --empty-img-height: 40px;
+  --empty-img-height-md: 80px;
+  --empty-img-height-lg: 120px;
+
+  /* 结果页相关 */
+  --result-title-font-size: 24px;
+  --result-subtitle-font-size: 14px;
+  --result-icon-font-size: 72px;
+  --result-extra-margin: 32px 0 0 0;
+
+  /* 统计数值相关 */
+  --statistic-title-font-size: 14px;
+  --statistic-content-font-size: 24px;
+  --statistic-unit-font-size: 16px;
+  --statistic-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+
+/* 暗色主题变量 */
+[data-theme='dark'] {
+  /* 主色调 */
+  --primary-color: #1890ff;
+  --primary-color-hover: #40a9ff;
+  --primary-color-active: #096dd9;
+  --primary-color-light: #111b26;
+  --primary-color-dark: #0050b3;
+
+  /* 成功色 */
+  --success-color: #52c41a;
+  --success-color-hover: #73d13d;
+  --success-color-active: #389e0d;
+  --success-color-light: #162312;
+
+  /* 警告色 */
+  --warning-color: #faad14;
+  --warning-color-hover: #ffc53d;
+  --warning-color-active: #d48806;
+  --warning-color-light: #2b2111;
+
+  /* 错误色 */
+  --error-color: #ff4d4f;
+  --error-color-hover: #ff7875;
+  --error-color-active: #d9363e;
+  --error-color-light: #2a1215;
+
+  /* 信息色 */
+  --info-color: #1890ff;
+  --info-color-hover: #40a9ff;
+  --info-color-active: #096dd9;
+  --info-color-light: #111b26;
+
+  /* 中性色 */
+  --text-color: #ffffff;
+  --text-color-secondary: #a6a6a6;
+  --text-color-tertiary: #737373;
+  --text-color-quaternary: #404040;
+  --text-color-disabled: #262626;
+
+  /* 背景色 */
+  --background-color: #141414;
+  --background-color-light: #1f1f1f;
+  --background-color-base: #000000;
+  --background-color-dark: #000000;
+
+  /* 边框色 */
+  --border-color: #434343;
+  --border-color-light: #303030;
+  --border-color-dark: #1f1f1f;
+
+  /* 表格相关 */
+  --table-header-bg: #262626;
+  --table-row-hover-bg: #262626;
+  --table-border-color: #303030;
+
+  /* 标签相关 */
+  --tag-default-bg: #262626;
+  --tag-default-color: #a6a6a6;
+
+  /* 面包屑相关 */
+  --breadcrumb-base-color: #737373;
+  --breadcrumb-last-item-color: #ffffff;
+  --breadcrumb-link-color: #737373;
+  --breadcrumb-link-color-hover: #1890ff;
+  --breadcrumb-separator-color: #737373;
+
+  /* 步骤条相关 */
+  --steps-nav-arrow-color: #737373;
+  --steps-background: #262626;
+
+  /* 时间轴相关 */
+  --timeline-color: #303030;
+  --timeline-dot-bg: #141414;
+
+  /* 锚点相关 */
+  --anchor-border-color: #303030;
+
+  /* 回到顶部相关 */
+  --back-top-color: #ffffff;
+  --back-top-bg: #737373;
+  --back-top-hover-bg: #a6a6a6;
+
+  /* 分割线相关 */
+  --divider-color: rgba(255, 255, 255, 0.06);
+}

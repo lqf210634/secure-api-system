@@ -1,0 +1,291 @@
+{{- if .Values.monitoring.enabled }}
+# ServiceMonitor for Prometheus to scrape metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-backend
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+spec:
+  selector:
+    matchLabels:
+      {{- include "secure-api-system.backendLabels" . | nindent 6 }}
+  endpoints:
+  - port: actuator
+    path: /actuator/prometheus
+    interval: {{ .Values.monitoring.scrapeInterval | default "30s" }}
+    scrapeTimeout: {{ .Values.monitoring.scrapeTimeout | default "10s" }}
+    {{- if .Values.monitoring.basicAuth.enabled }}
+    basicAuth:
+      username:
+        name: {{ include "secure-api-system.fullname" . }}-monitoring-auth
+        key: username
+      password:
+        name: {{ include "secure-api-system.fullname" . }}-monitoring-auth
+        key: password
+    {{- end }}
+
+---
+{{- if .Values.monitoring.frontend.enabled }}
+# ServiceMonitor for Frontend (if metrics are exposed)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-frontend
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+spec:
+  selector:
+    matchLabels:
+      {{- include "secure-api-system.frontendLabels" . | nindent 6 }}
+  endpoints:
+  - port: http
+    path: {{ .Values.monitoring.frontend.metricsPath | default "/metrics" }}
+    interval: {{ .Values.monitoring.scrapeInterval | default "30s" }}
+    scrapeTimeout: {{ .Values.monitoring.scrapeTimeout | default "10s" }}
+{{- end }}
+
+---
+# PrometheusRule for alerting
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-alerts
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+spec:
+  groups:
+  - name: {{ include "secure-api-system.fullname" . }}.rules
+    rules:
+    # Application Health Alerts
+    - alert: ApplicationDown
+      expr: up{job="{{ include "secure-api-system.fullname" . }}-backend"} == 0
+      for: {{ .Values.monitoring.alerts.applicationDown.duration | default "1m" }}
+      labels:
+        severity: critical
+        service: {{ include "secure-api-system.fullname" . }}
+      annotations:
+        summary: "Application {{ include "secure-api-system.fullname" . }} is down"
+        description: "Application {{ include "secure-api-system.fullname" . }} has been down for more than 1 minute."
+
+    # High Error Rate Alert
+    - alert: HighErrorRate
+      expr: |
+        (
+          rate(http_server_requests_seconds_count{job="{{ include "secure-api-system.fullname" . }}-backend",status=~"5.."}[5m]) /
+          rate(http_server_requests_seconds_count{job="{{ include "secure-api-system.fullname" . }}-backend"}[5m])
+        ) * 100 > {{ .Values.monitoring.alerts.errorRate.threshold | default 5 }}
+      for: {{ .Values.monitoring.alerts.errorRate.duration | default "2m" }}
+      labels:
+        severity: warning
+        service: {{ include "secure-api-system.fullname" . }}
+      annotations:
+        summary: "High error rate detected"
+        description: "Error rate is above {{ .Values.monitoring.alerts.errorRate.threshold | default 5 }}% for more than 2 minutes."
+
+    # High Response Time Alert
+    - alert: HighResponseTime
+      expr: |
+        histogram_quantile(0.95, 
+          rate(http_server_requests_seconds_bucket{job="{{ include "secure-api-system.fullname" . }}-backend"}[5m])
+        ) > {{ .Values.monitoring.alerts.responseTime.threshold | default 1 }}
+      for: {{ .Values.monitoring.alerts.responseTime.duration | default "5m" }}
+      labels:
+        severity: warning
+        service: {{ include "secure-api-system.fullname" . }}
+      annotations:
+        summary: "High response time detected"
+        description: "95th percentile response time is above {{ .Values.monitoring.alerts.responseTime.threshold | default 1 }}s for more than 5 minutes."
+
+    # High Memory Usage Alert
+    - alert: HighMemoryUsage
+      expr: |
+        (
+          container_memory_working_set_bytes{pod=~"{{ include "secure-api-system.fullname" . }}-backend-.*"} /
+          container_spec_memory_limit_bytes{pod=~"{{ include "secure-api-system.fullname" . }}-backend-.*"}
+        ) * 100 > {{ .Values.monitoring.alerts.memoryUsage.threshold | default 80 }}
+      for: {{ .Values.monitoring.alerts.memoryUsage.duration | default "5m" }}
+      labels:
+        severity: warning
+        service: {{ include "secure-api-system.fullname" . }}
+      annotations:
+        summary: "High memory usage detected"
+        description: "Memory usage is above {{ .Values.monitoring.alerts.memoryUsage.threshold | default 80 }}% for more than 5 minutes."
+
+    # High CPU Usage Alert
+    - alert: HighCPUUsage
+      expr: |
+        (
+          rate(container_cpu_usage_seconds_total{pod=~"{{ include "secure-api-system.fullname" . }}-backend-.*"}[5m]) /
+          container_spec_cpu_quota{pod=~"{{ include "secure-api-system.fullname" . }}-backend-.*"} * 
+          container_spec_cpu_period{pod=~"{{ include "secure-api-system.fullname" . }}-backend-.*"}
+        ) * 100 > {{ .Values.monitoring.alerts.cpuUsage.threshold | default 80 }}
+      for: {{ .Values.monitoring.alerts.cpuUsage.duration | default "5m" }}
+      labels:
+        severity: warning
+        service: {{ include "secure-api-system.fullname" . }}
+      annotations:
+        summary: "High CPU usage detected"
+        description: "CPU usage is above {{ .Values.monitoring.alerts.cpuUsage.threshold | default 80 }}% for more than 5 minutes."
+
+    # Database Connection Pool Alert
+    - alert: DatabaseConnectionPoolExhausted
+      expr: |
+        hikaricp_connections_active{job="{{ include "secure-api-system.fullname" . }}-backend"} /
+        hikaricp_connections_max{job="{{ include "secure-api-system.fullname" . }}-backend"} > 0.9
+      for: {{ .Values.monitoring.alerts.dbConnectionPool.duration | default "2m" }}
+      labels:
+        severity: critical
+        service: {{ include "secure-api-system.fullname" . }}
+      annotations:
+        summary: "Database connection pool nearly exhausted"
+        description: "Database connection pool usage is above 90% for more than 2 minutes."
+
+    # JVM Heap Usage Alert
+    - alert: HighJVMHeapUsage
+      expr: |
+        (
+          jvm_memory_used_bytes{job="{{ include "secure-api-system.fullname" . }}-backend",area="heap"} /
+          jvm_memory_max_bytes{job="{{ include "secure-api-system.fullname" . }}-backend",area="heap"}
+        ) * 100 > {{ .Values.monitoring.alerts.jvmHeap.threshold | default 85 }}
+      for: {{ .Values.monitoring.alerts.jvmHeap.duration | default "5m" }}
+      labels:
+        severity: warning
+        service: {{ include "secure-api-system.fullname" . }}
+      annotations:
+        summary: "High JVM heap usage detected"
+        description: "JVM heap usage is above {{ .Values.monitoring.alerts.jvmHeap.threshold | default 85 }}% for more than 5 minutes."
+
+---
+# Grafana Dashboard ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-grafana-dashboard
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+    grafana_dashboard: "1"
+data:
+  dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "{{ include "secure-api-system.fullname" . }} Dashboard",
+        "tags": ["secure-api-system", "spring-boot", "react"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Application Status",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "up{job=\"{{ include "secure-api-system.fullname" . }}-backend\"}",
+                "legendFormat": "Backend Status"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "mappings": [
+                  {"options": {"0": {"text": "DOWN", "color": "red"}}, "type": "value"},
+                  {"options": {"1": {"text": "UP", "color": "green"}}, "type": "value"}
+                ]
+              }
+            },
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(http_server_requests_seconds_count{job=\"{{ include "secure-api-system.fullname" . }}-backend\"}[5m])",
+                "legendFormat": "Requests/sec"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "Response Time (95th percentile)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{job=\"{{ include "secure-api-system.fullname" . }}-backend\"}[5m]))",
+                "legendFormat": "95th percentile"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "Error Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(http_server_requests_seconds_count{job=\"{{ include "secure-api-system.fullname" . }}-backend\",status=~\"5..\"}[5m]) / rate(http_server_requests_seconds_count{job=\"{{ include "secure-api-system.fullname" . }}-backend\"}[5m]) * 100",
+                "legendFormat": "Error Rate %"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "JVM Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "jvm_memory_used_bytes{job=\"{{ include "secure-api-system.fullname" . }}-backend\",area=\"heap\"} / jvm_memory_max_bytes{job=\"{{ include "secure-api-system.fullname" . }}-backend\",area=\"heap\"} * 100",
+                "legendFormat": "Heap Usage %"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+          },
+          {
+            "id": 6,
+            "title": "Database Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "hikaricp_connections_active{job=\"{{ include "secure-api-system.fullname" . }}-backend\"}",
+                "legendFormat": "Active Connections"
+              },
+              {
+                "expr": "hikaricp_connections_max{job=\"{{ include "secure-api-system.fullname" . }}-backend\"}",
+                "legendFormat": "Max Connections"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+          }
+        ],
+        "time": {"from": "now-1h", "to": "now"},
+        "refresh": "30s"
+      }
+
+---
+{{- if .Values.monitoring.basicAuth.enabled }}
+# Basic Auth Secret for Monitoring
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-monitoring-auth
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+type: Opaque
+data:
+  username: {{ .Values.monitoring.basicAuth.username | b64enc }}
+  password: {{ .Values.monitoring.basicAuth.password | b64enc }}
+{{- end }}
+{{- end }}

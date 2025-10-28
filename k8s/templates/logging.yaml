@@ -1,0 +1,362 @@
+{{- if .Values.logging.enabled }}
+# Fluent Bit DaemonSet for log collection
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-fluent-bit
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: logging
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fluent-bit
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fluent-bit
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: logging
+    spec:
+      serviceAccountName: {{ include "secure-api-system.fullname" . }}-fluent-bit
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - operator: "Exists"
+        effect: "NoExecute"
+      - operator: "Exists"
+        effect: "NoSchedule"
+      containers:
+      - name: fluent-bit
+        image: {{ .Values.logging.fluentBit.image.repository }}:{{ .Values.logging.fluentBit.image.tag | default "latest" }}
+        imagePullPolicy: {{ .Values.logging.fluentBit.image.pullPolicy | default "IfNotPresent" }}
+        ports:
+        - containerPort: 2020
+          name: http
+        env:
+        - name: FLUENT_CONF
+          value: fluent-bit.conf
+        - name: FLUENT_OPT
+          value: ""
+        {{- if .Values.logging.elasticsearch.enabled }}
+        - name: ELASTICSEARCH_HOST
+          value: {{ .Values.logging.elasticsearch.host | default "elasticsearch" }}
+        - name: ELASTICSEARCH_PORT
+          value: "{{ .Values.logging.elasticsearch.port | default 9200 }}"
+        {{- if .Values.logging.elasticsearch.auth.enabled }}
+        - name: ELASTICSEARCH_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "secure-api-system.fullname" . }}-logging-auth
+              key: elasticsearch-username
+        - name: ELASTICSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "secure-api-system.fullname" . }}-logging-auth
+              key: elasticsearch-password
+        {{- end }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.logging.fluentBit.resources | nindent 10 }}
+        volumeMounts:
+        - name: config
+          mountPath: /fluent-bit/etc/
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: mnt
+          mountPath: /mnt
+          readOnly: true
+        securityContext:
+          runAsUser: 0
+          privileged: true
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "secure-api-system.fullname" . }}-fluent-bit-config
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: mnt
+        hostPath:
+          path: /mnt
+
+---
+# Fluent Bit ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-fluent-bit
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: logging
+
+---
+# Fluent Bit ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-fluent-bit
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: logging
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  - pods/logs
+  verbs: ["get", "list", "watch"]
+
+---
+# Fluent Bit ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-fluent-bit
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: logging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "secure-api-system.fullname" . }}-fluent-bit
+subjects:
+- kind: ServiceAccount
+  name: {{ include "secure-api-system.fullname" . }}-fluent-bit
+  namespace: {{ include "secure-api-system.namespace" . }}
+
+---
+# Fluent Bit Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-fluent-bit-config
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: logging
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         1
+        Log_Level     {{ .Values.logging.fluentBit.logLevel | default "info" }}
+        Daemon        off
+        Parsers_File  parsers.conf
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_Port     2020
+
+    @INCLUDE input-kubernetes.conf
+    @INCLUDE filter-kubernetes.conf
+    @INCLUDE output-elasticsearch.conf
+
+  input-kubernetes.conf: |
+    [INPUT]
+        Name              tail
+        Tag               kube.*
+        Path              /var/log/containers/*{{ include "secure-api-system.fullname" . }}*.log
+        Parser            docker
+        DB                /var/log/flb_kube.db
+        Mem_Buf_Limit     50MB
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+
+  filter-kubernetes.conf: |
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube.var.log.containers.
+        Merge_Log           On
+        Merge_Log_Key       log_processed
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude Off
+
+    [FILTER]
+        Name                nest
+        Match               kube.*
+        Operation           lift
+        Nested_under        kubernetes
+        Add_prefix          kubernetes_
+
+    [FILTER]
+        Name                modify
+        Match               kube.*
+        Add                 application {{ include "secure-api-system.fullname" . }}
+        Add                 environment {{ .Values.global.environment | default "production" }}
+
+  {{- if .Values.logging.elasticsearch.enabled }}
+  output-elasticsearch.conf: |
+    [OUTPUT]
+        Name            es
+        Match           kube.*
+        Host            ${ELASTICSEARCH_HOST}
+        Port            ${ELASTICSEARCH_PORT}
+        {{- if .Values.logging.elasticsearch.auth.enabled }}
+        HTTP_User       ${ELASTICSEARCH_USERNAME}
+        HTTP_Passwd     ${ELASTICSEARCH_PASSWORD}
+        {{- end }}
+        {{- if .Values.logging.elasticsearch.tls.enabled }}
+        tls             On
+        tls.verify      {{ .Values.logging.elasticsearch.tls.verify | default "On" }}
+        {{- if .Values.logging.elasticsearch.tls.ca_file }}
+        tls.ca_file     {{ .Values.logging.elasticsearch.tls.ca_file }}
+        {{- end }}
+        {{- end }}
+        Index           {{ .Values.logging.elasticsearch.index | default "secure-api-system" }}
+        Type            _doc
+        Logstash_Format On
+        Logstash_Prefix {{ .Values.logging.elasticsearch.logstashPrefix | default "secure-api-system" }}
+        Logstash_DateFormat %Y.%m.%d
+        Time_Key        @timestamp
+        Time_Key_Format %Y-%m-%dT%H:%M:%S.%L%z
+        Retry_Limit     {{ .Values.logging.elasticsearch.retryLimit | default 5 }}
+        Buffer_Size     {{ .Values.logging.elasticsearch.bufferSize | default "4KB" }}
+  {{- else }}
+  output-elasticsearch.conf: |
+    [OUTPUT]
+        Name            stdout
+        Match           kube.*
+        Format          json_lines
+  {{- end }}
+
+  parsers.conf: |
+    [PARSER]
+        Name        docker
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+
+    [PARSER]
+        Name        spring-boot
+        Format      regex
+        Regex       ^(?<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?<level>\w+)\s+(?<pid>\d+)\s+---\s+\[(?<thread>.*?)\]\s+(?<logger>\S+)\s*:\s+(?<message>.*)$
+        Time_Key    timestamp
+        Time_Format %Y-%m-%d %H:%M:%S.%L
+
+---
+{{- if .Values.logging.elasticsearch.auth.enabled }}
+# Elasticsearch Authentication Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-logging-auth
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: logging
+type: Opaque
+data:
+  elasticsearch-username: {{ .Values.logging.elasticsearch.auth.username | b64enc }}
+  elasticsearch-password: {{ .Values.logging.elasticsearch.auth.password | b64enc }}
+{{- end }}
+
+---
+# Log Rotation CronJob
+{{- if .Values.logging.logRotation.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-log-rotation
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: logging
+spec:
+  schedule: "{{ .Values.logging.logRotation.schedule | default "0 2 * * *" }}"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "secure-api-system.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: log-rotation
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "secure-api-system.serviceAccountName" . }}
+          containers:
+          - name: log-rotator
+            image: {{ .Values.logging.logRotation.image.repository }}:{{ .Values.logging.logRotation.image.tag | default "latest" }}
+            imagePullPolicy: {{ .Values.logging.logRotation.image.pullPolicy | default "IfNotPresent" }}
+            command:
+            - /bin/sh
+            - -c
+            - |
+              # Clean up old log files
+              find /var/log -name "*.log" -type f -mtime +{{ .Values.logging.logRotation.retentionDays | default 30 }} -delete
+              
+              # Compress old log files
+              find /var/log -name "*.log" -type f -mtime +{{ .Values.logging.logRotation.compressDays | default 7 }} -exec gzip {} \;
+              
+              echo "Log rotation completed"
+            volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            resources:
+              {{- toYaml .Values.logging.logRotation.resources | nindent 14 }}
+          volumes:
+          - name: varlog
+            hostPath:
+              path: /var/log
+{{- end }}
+
+---
+# Kibana Dashboard ConfigMap
+{{- if .Values.logging.kibana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "secure-api-system.fullname" . }}-kibana-dashboard
+  namespace: {{ include "secure-api-system.namespace" . }}
+  labels:
+    {{- include "secure-api-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: logging
+data:
+  dashboard.json: |
+    {
+      "version": "7.10.0",
+      "objects": [
+        {
+          "id": "{{ include "secure-api-system.fullname" . }}-logs",
+          "type": "index-pattern",
+          "attributes": {
+            "title": "{{ .Values.logging.elasticsearch.logstashPrefix | default "secure-api-system" }}-*",
+            "timeFieldName": "@timestamp"
+          }
+        },
+        {
+          "id": "{{ include "secure-api-system.fullname" . }}-dashboard",
+          "type": "dashboard",
+          "attributes": {
+            "title": "{{ include "secure-api-system.fullname" . }} Logs Dashboard",
+            "description": "Log analysis dashboard for {{ include "secure-api-system.fullname" . }}",
+            "panelsJSON": "[{\"version\":\"7.10.0\",\"gridData\":{\"x\":0,\"y\":0,\"w\":24,\"h\":15,\"i\":\"1\"},\"panelIndex\":\"1\",\"embeddableConfig\":{},\"panelRefName\":\"panel_1\"}]",
+            "optionsJSON": "{\"useMargins\":true,\"syncColors\":false,\"hidePanelTitles\":false}",
+            "version": 1,
+            "timeRestore": false,
+            "kibanaSavedObjectMeta": {
+              "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[]}"
+            }
+          }
+        }
+      ]
+    }
+{{- end }}
+{{- end }}

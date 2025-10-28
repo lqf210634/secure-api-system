@@ -1,0 +1,220 @@
+version: '3.8'
+
+services:
+  # Database for testing
+  mysql-test:
+    image: mysql:8.0
+    container_name: mysql-test
+    environment:
+      MYSQL_ROOT_PASSWORD: testpassword
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpassword
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_test_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Redis for testing
+  redis-test:
+    image: redis:7-alpine
+    container_name: redis-test
+    ports:
+      - "6380:6379"
+    command: redis-server --requirepass testpassword
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend application for testing
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: backend-test
+    environment:
+      SPRING_PROFILES_ACTIVE: test
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-test:3306/testdb
+      SPRING_DATASOURCE_USERNAME: testuser
+      SPRING_DATASOURCE_PASSWORD: testpassword
+      SPRING_REDIS_HOST: redis-test
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: testpassword
+      JWT_SECRET: test-jwt-secret-key-for-testing-purposes-only
+      ENCRYPTION_KEY: test-encryption-key-32-characters
+      LOGGING_LEVEL_ROOT: INFO
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
+    ports:
+      - "8081:8080"
+      - "8082:8081"
+    depends_on:
+      mysql-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    volumes:
+      - ./logs:/app/logs
+
+  # Frontend application for testing
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: frontend-test
+    environment:
+      API_BASE_URL: http://backend-test:8080
+      NODE_ENV: test
+    ports:
+      - "3001:80"
+    depends_on:
+      backend-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Nginx load balancer for testing
+  nginx-test:
+    image: nginx:alpine
+    container_name: nginx-test
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/test.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend-test
+      - backend-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Prometheus for testing
+  prometheus-test:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus-test
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.test.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_test_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - backend-test
+      - frontend-test
+
+  # Grafana for testing
+  grafana-test:
+    image: grafana/grafana:10.0.0
+    container_name: grafana-test
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: testpassword
+      GF_INSTALL_PLUGINS: grafana-piechart-panel,grafana-worldmap-panel
+    volumes:
+      - grafana_test_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus-test
+
+  # Test runner container
+  test-runner:
+    build:
+      context: ./tests
+      dockerfile: Dockerfile
+    container_name: test-runner
+    environment:
+      BASE_URL: http://nginx-test:80
+      API_URL: http://backend-test:8080
+      MYSQL_HOST: mysql-test
+      MYSQL_PORT: 3306
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpassword
+      MYSQL_DATABASE: testdb
+      REDIS_HOST: redis-test
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: testpassword
+    volumes:
+      - ./tests:/tests
+      - ./test-results:/test-results
+    depends_on:
+      nginx-test:
+        condition: service_healthy
+      backend-test:
+        condition: service_healthy
+      frontend-test:
+        condition: service_healthy
+    profiles:
+      - testing
+
+  # Performance testing with k6
+  k6-test:
+    image: grafana/k6:latest
+    container_name: k6-test
+    environment:
+      BASE_URL: http://nginx-test:80
+      API_URL: http://backend-test:8080
+    volumes:
+      - ./tests/performance:/scripts
+      - ./test-results:/results
+    depends_on:
+      nginx-test:
+        condition: service_healthy
+    profiles:
+      - performance
+
+  # Security testing with OWASP ZAP
+  zap-test:
+    image: owasp/zap2docker-stable
+    container_name: zap-test
+    environment:
+      ZAP_TARGET_URL: http://nginx-test:80
+    volumes:
+      - ./test-results:/zap/wrk
+    depends_on:
+      nginx-test:
+        condition: service_healthy
+    profiles:
+      - security
+
+volumes:
+  mysql_test_data:
+    driver: local
+  prometheus_test_data:
+    driver: local
+  grafana_test_data:
+    driver: local
+
+networks:
+  default:
+    name: secure-api-test-network
+    driver: bridge
