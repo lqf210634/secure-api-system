@@ -31,7 +31,7 @@ import {
   ExclamationCircleOutlined,
   ReloadOutlined
 } from '@ant-design/icons';
-import { useAuth, useApi } from '@/hooks';
+import { useAuth, useApi, useMessage } from '@/hooks';
 import { UserService, AuthService } from '@/services';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -67,6 +67,7 @@ interface SystemAlert {
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const { message, notification } = useMessage();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [systemAlerts, setSystemAlerts] = useState<SystemAlert[]>([]);
@@ -244,6 +245,7 @@ const Dashboard: React.FC = () => {
             weekday: 'long'
           })}
         </Text>
+
       </div>
 
       {/* 系统告警 */}

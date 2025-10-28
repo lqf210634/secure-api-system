@@ -10,8 +10,7 @@ import {
   Tooltip,
   Switch,
   Divider,
-  Modal,
-  message
+  Modal
 } from 'antd';
 import {
   MenuFoldOutlined,
@@ -29,7 +28,7 @@ import {
 } from '@ant-design/icons';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks';
+import { useAuth, useMessage } from '@/hooks';
 import { 
   selectSidebarCollapsed, 
   selectTheme, 
@@ -51,6 +50,7 @@ const Header: React.FC<HeaderProps> = ({ className }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user, logout, getDisplayName } = useAuth();
+  const { message } = useMessage();
   
   const collapsed = useSelector(selectSidebarCollapsed);
   const theme = useSelector(selectTheme);

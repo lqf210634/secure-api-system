@@ -11,7 +11,6 @@ import {
   Progress,
   Space,
   Checkbox,
-  message,
   Image
 } from 'antd';
 import {
@@ -26,7 +25,7 @@ import {
   ReloadOutlined
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@/hooks';
+import { useAuth, useMessage } from '@/hooks';
 import { AuthService } from '@/services';
 import { RegisterRequest } from '@/types';
 import { getDeviceInfo } from '@/utils/storage';
@@ -44,6 +43,7 @@ interface RegisterFormProps {
 const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, loading: externalLoading }) => {
   const [form] = Form.useForm();
   const { register, loading: authLoading, error } = useAuth();
+  const { message } = useMessage();
   
   const [currentStep, setCurrentStep] = useState(0);
   const [captchaData, setCaptchaData] = useState<{ image: string; token: string } | null>(null);

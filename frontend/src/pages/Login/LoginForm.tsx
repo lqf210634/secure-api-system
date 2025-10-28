@@ -10,8 +10,7 @@ import {
   Alert,
   Image,
   Row,
-  Col,
-  message
+  Col
 } from 'antd';
 import {
   UserOutlined,
@@ -22,7 +21,7 @@ import {
   ReloadOutlined
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@/hooks';
+import { useAuth, useMessage } from '@/hooks';
 import { AuthService } from '@/services';
 import { LoginRequest } from '@/types';
 import { getDeviceInfo } from '@/utils/storage';
@@ -38,6 +37,7 @@ interface LoginFormProps {
 const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, loading: externalLoading }) => {
   const [form] = Form.useForm();
   const { login, loading: authLoading, error } = useAuth();
+  const { message } = useMessage();
   
   const [captchaData, setCaptchaData] = useState<{ image: string; token: string } | null>(null);
   const [captchaLoading, setCaptchaLoading] = useState(false);

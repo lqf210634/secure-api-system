@@ -160,7 +160,7 @@ const RegisterPage: React.FC = () => {
                 background: 'rgba(255, 255, 255, 0.95)',
                 backdropFilter: 'blur(20px)'
               }}
-              bodyStyle={{ padding: '48px 40px' }}
+              styles={{ body: { padding: '48px 40px' } }}
             >
               <RegisterForm onSuccess={handleRegisterSuccess} />
             </Card>

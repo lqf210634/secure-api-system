@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { message } from 'antd';
 import { HttpClient } from '@/utils/request';
 import { ApiResponse, ApiError } from '@/types';
+import { useMessage } from './useMessage';
 
 /**
  * API请求状态
@@ -31,6 +31,7 @@ export const useApi = <T = any>(
   apiFunction: (...args: any[]) => Promise<ApiResponse<T>>,
   config: ApiConfig = {}
 ) => {
+  const { message } = useMessage();
   const {
     immediate = false,
     onSuccess,

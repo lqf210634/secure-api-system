@@ -1,3 +1,4 @@
+import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { Provider } from 'react-redux'
@@ -26,9 +27,9 @@ vi.mock('chart.js', () => ({
 }))
 
 vi.mock('react-chartjs-2', () => ({
-  Bar: ({ data }) => <div data-testid="bar-chart">Bar Chart</div>,
-  Line: ({ data }) => <div data-testid="line-chart">Line Chart</div>,
-  Pie: ({ data }) => <div data-testid="pie-chart">Pie Chart</div>
+  Bar: ({ data }: any) => React.createElement('div', { 'data-testid': 'bar-chart' }, 'Bar Chart'),
+  Line: ({ data }: any) => React.createElement('div', { 'data-testid': 'line-chart' }, 'Line Chart'),
+  Pie: ({ data }: any) => React.createElement('div', { 'data-testid': 'pie-chart' }, 'Pie Chart')
 }))
 
 // Mock antd message

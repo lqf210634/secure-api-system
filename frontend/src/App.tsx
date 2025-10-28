@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider, App as AntApp, message, notification } from 'antd';
+import { ConfigProvider, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import { setGlobalMessageInstance } from '@/utils/globalMessage';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import { MainLayout } from '@/components/Layout';
@@ -16,23 +17,15 @@ import '@/styles/global.css';
 // 设置dayjs中文
 dayjs.locale('zh-cn');
 
-// 全局配置
-message.config({
-  top: 100,
-  duration: 3,
-  maxCount: 3,
-});
-
-notification.config({
-  placement: 'topRight',
-  top: 100,
-  duration: 4.5,
-  rtl: false,
-});
-
 // 应用路由组件
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, checkAuthStatus } = useAuth();
+  const { message: messageApi, notification: notificationApi } = AntApp.useApp();
+
+  useEffect(() => {
+    // 设置全局消息实例
+    setGlobalMessageInstance(messageApi, notificationApi);
+  }, [messageApi, notificationApi]);
 
   useEffect(() => {
     // 应用启动时恢复认证状态

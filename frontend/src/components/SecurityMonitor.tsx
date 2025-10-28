@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Card, Badge, Typography, Space, Alert, Button, Modal, List, Tag } from 'antd';
 import {
-  ShieldCheckOutlined,
+  SafetyOutlined,
   WarningOutlined,
   ExclamationCircleOutlined,
   EyeOutlined,
@@ -201,7 +201,7 @@ const SecurityMonitor: React.FC<SecurityMonitorProps> = ({
         style={{ ...style }}
         title={
           <Space>
-            <ShieldCheckOutlined />
+            <SafetyOutlined />
             <span>安全监控</span>
             <Badge
               color={getSecurityLevelColor(securityStatus.level)}

@@ -16,3 +16,6 @@ export {
   useBatchOperation, 
   usePolling 
 } from './useApi';
+
+// UI相关hooks
+export { useMessage } from './useMessage';

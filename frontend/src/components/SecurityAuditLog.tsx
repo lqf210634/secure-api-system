@@ -23,7 +23,7 @@ import {
   ExportOutlined,
   EyeOutlined,
   WarningOutlined,
-  ShieldCheckOutlined,
+  SafetyOutlined,
   UserOutlined,
   ClockCircleOutlined
 } from '@ant-design/icons';
@@ -425,7 +425,7 @@ const SecurityAuditLog: React.FC<SecurityAuditLogProps> = ({
               <Statistic
                 title="已阻止攻击"
                 value={statistics.blocked}
-                prefix={<ShieldCheckOutlined />}
+                prefix={<SafetyOutlined />}
                 valueStyle={{ color: '#52c41a' }}
               />
             </Card>

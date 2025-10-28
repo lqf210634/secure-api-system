@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
-import { message, notification } from 'antd';
 import { ApiResponse, ApiError } from '@/types';
+import { getGlobalMessage, getGlobalNotification } from './globalMessage';
 import { getToken, removeToken, setToken } from './storage';
 import { SecurityUtils } from './encryption';
 
@@ -100,14 +100,14 @@ const createAxiosInstance = (): AxiosInstance => {
             break;
           case 403:
             // 权限不足
-            notification.error({
+            getGlobalNotification().error({
               message: '权限不足',
               description: data.message || '您没有权限执行此操作',
             });
             break;
           case 429:
             // 请求过于频繁
-            notification.warning({
+            getGlobalNotification().warning({
               message: '请求过于频繁',
               description: '请稍后再试',
             });
@@ -115,7 +115,7 @@ const createAxiosInstance = (): AxiosInstance => {
           default:
             // 其他业务错误
             if (!(response.config as RequestConfig).skipErrorHandler) {
-              message.error(data.message || '操作失败');
+              getGlobalMessage().error(data.message || '操作失败');
             }
         }
 
@@ -151,18 +151,18 @@ const createAxiosInstance = (): AxiosInstance => {
           window.location.href = '/login';
           break;
         case 403:
-          notification.error({
+          getGlobalNotification().error({
             message: '权限不足',
             description: '您没有权限访问此资源',
           });
           break;
         case 404:
           if (!config?.skipErrorHandler) {
-            message.error('请求的资源不存在');
+            getGlobalMessage().error('请求的资源不存在');
           }
           break;
         case 500:
-          notification.error({
+          getGlobalNotification().error({
             message: '服务器错误',
             description: '服务器内部错误，请稍后重试',
           });
@@ -170,14 +170,14 @@ const createAxiosInstance = (): AxiosInstance => {
         case 502:
         case 503:
         case 504:
-          notification.error({
+          getGlobalNotification().error({
             message: '服务不可用',
             description: '服务暂时不可用，请稍后重试',
           });
           break;
         default:
           if (!config?.skipErrorHandler) {
-            message.error(`请求失败 (${status})`);
+            getGlobalMessage().error(`请求失败 (${status})`);
           }
       }
 

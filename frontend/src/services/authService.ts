@@ -9,7 +9,7 @@ import {
 } from '@/types';
 
 // 检查是否使用模拟模式
-const USE_MOCK = import.meta.env.DEV && !import.meta.env.VITE_DISABLE_MOCK;
+const USE_MOCK = import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK === 'true';
 
 /**
  * 认证服务API

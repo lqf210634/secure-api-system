@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Input, InputProps, Tooltip, Space } from 'antd';
-import { EyeInvisibleOutlined, EyeTwoTone, ShieldCheckOutlined, WarningOutlined } from '@ant-design/icons';
+import { EyeInvisibleOutlined, EyeTwoTone, SafetyOutlined, WarningOutlined } from '@ant-design/icons';
 import { escapeHtml, validateEmail, validateUsername, validatePhone } from '@/utils/security';
 import PasswordStrength from './PasswordStrength';
 
@@ -127,7 +127,7 @@ const SecureInput: React.FC<SecureInputProps> = ({
 
     return validationState.valid ? (
       <Tooltip title="输入安全">
-        <ShieldCheckOutlined style={{ color: '#52c41a' }} />
+        <SafetyOutlined style={{ color: '#52c41a' }} />
       </Tooltip>
     ) : (
       <Tooltip title={validationState.message || '输入格式错误'}>

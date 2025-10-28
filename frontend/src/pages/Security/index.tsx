@@ -16,13 +16,11 @@ import {
   Tag,
   Statistic,
   Progress,
-  Tabs,
-  message
+  Tabs
 } from 'antd';
 import {
-  ShieldCheckOutlined,
-  LockOutlined,
   SafetyOutlined,
+  LockOutlined,
   WarningOutlined,
   SettingOutlined,
   KeyOutlined,
@@ -32,6 +30,7 @@ import {
 import SecurityMonitor from '@/components/SecurityMonitor';
 import SecurityAuditLog from '@/components/SecurityAuditLog';
 import { SecurityConfig } from '@/config/security';
+import { useMessage } from '@/hooks';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -62,6 +61,7 @@ interface LoginSession {
 const SecurityPage: React.FC = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const { message } = useMessage();
   const [settings, setSettings] = useState<SecuritySettings>({
     twoFactorAuth: false,
     loginNotifications: true,
@@ -392,7 +392,7 @@ const SecurityPage: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <Title level={2}>
-        <ShieldCheckOutlined /> 安全中心
+        <SafetyOutlined /> 安全中心
       </Title>
       <Paragraph type="secondary">
         管理您的账户安全设置，监控安全事件，保护您的数据安全

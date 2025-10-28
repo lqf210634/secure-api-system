@@ -71,7 +71,7 @@ export default defineConfig({
           // 将 Ant Design 打包到一个 chunk
           'antd-vendor': ['antd', '@ant-design/icons'],
           // 将工具库打包到一个 chunk
-          'utils-vendor': ['dayjs', 'axios', 'lodash-es'],
+          'utils-vendor': ['dayjs', 'axios', 'lodash'],
         },
       },
     },
@@ -120,7 +120,7 @@ export default defineConfig({
       '@ant-design/icons',
       'dayjs',
       'axios',
-      'lodash-es',
+      'lodash',
     ],
   },
   
